@@ -162,7 +162,6 @@ RRF_CXX_INCLUDES = include_flags(
     "CoreN2G/src/SAM4S_4E_E70/asf/sam/drivers",
     "RepRapFirmware/src",
     "RepRapFirmware/src/Hardware/SAM4E",
-    "RepRapFirmware/src/DuetNG",
     "RepRapFirmware/src/Networking",
     "RepRapFirmware/src/Networking/MQTT/MQTT_C/include",
     "WiFiSocketServerRTOS/src/include",
@@ -237,7 +236,7 @@ FIRMWARE = Project(
         defines=(
             "__SAM4E8E__",
             "RTOS",
-            "DUET_NG",
+            "DA_VINCI_JR",
             "MQTTC_PAL_FILE=Networking/MQTT/mqtt_pal.h",
             "noexcept=",
         ),
@@ -248,7 +247,7 @@ FIRMWARE = Project(
         defines=(
             "__SAM4E8E__",
             "RTOS",
-            "DUET_NG",
+            "DA_VINCI_JR",
             "MQTTC_PAL_FILE=Networking/MQTT/mqtt_pal.h",
             "_XOPEN_SOURCE",
         ),
@@ -338,9 +337,9 @@ def crc_appender() -> Path:
 def build_firmware(archives: dict[str, Path]) -> Path:
     objects = compile_project(FIRMWARE)
     output_dir = BUILD_ROOT / FIRMWARE.name
-    elf = output_dir / "Duet2CombinedFirmware.elf"
-    binary = output_dir / "Duet2CombinedFirmware.bin"
-    map_file = output_dir / "Duet2CombinedFirmware.map"
+    elf = output_dir / "DaVinciJrFirmware.elf"
+    binary = output_dir / "DaVinciJrFirmware.bin"
+    map_file = output_dir / "DaVinciJrFirmware.map"
     linker_script = ROOT / "RepRapFirmware/src/Hardware/SAM4E/sam4e8e_flash.ld"
     link_flags = [
         "--specs=nosys.specs",
@@ -398,7 +397,7 @@ def build() -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Build the Duet 2 WiFi RepRapFirmware image"
+        description="Build the Da Vinci Jr 1.0 RepRapFirmware image"
     )
     parser.add_argument("command", choices=("build", "clean"))
     args = parser.parse_args()

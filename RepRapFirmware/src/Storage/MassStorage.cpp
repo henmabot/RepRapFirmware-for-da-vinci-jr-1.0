@@ -383,7 +383,7 @@ void MassStorage::Spin() noexcept
 		SdCardInfo& inf = info[card];
 		if (inf.cdPin != NoPin)
 		{
-			if (IoPort::ReadPin(inf.cdPin))
+			if (IoPort::ReadPin(inf.cdPin) == SdCardDetectHighMeansNoCard)
 			{
 				// Pin state says no card present
 				switch (inf.cardState)

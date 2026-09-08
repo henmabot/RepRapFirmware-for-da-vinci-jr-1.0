@@ -18,8 +18,10 @@ extern AsyncSerial serialWiFi;
 
 extern SerialCDC serialUSB;
 
-#include <Wire.h>
+#ifdef I2C_IFACE
+# include <Wire.h>
 extern TwoWire Wire;
+#endif
 
 void DeviceInit() noexcept;
 void StopAnalogTask() noexcept;

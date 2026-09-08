@@ -245,7 +245,7 @@ constexpr ObjectModelTableEntry Move::objectModelTable[] =
 	{ "min",				OBJECT_MODEL_FUNC(self->AxisMinimum(context.GetLastIndex()), 2),												ObjectModelEntryFlags::none },
 	{ "minProbed",			OBJECT_MODEL_FUNC(self->axisMinimaProbed.IsBitSet(context.GetLastIndex())),										ObjectModelEntryFlags::notPanelDue },
 	{ "percentCurrent",		OBJECT_MODEL_FUNC((int32_t)(self->GetMotorCurrent(context.GetLastIndex(), 913))),								ObjectModelEntryFlags::notPanelDue },
-#ifndef DUET_NG
+#if HAS_SMART_DRIVERS || SUPPORT_CAN_EXPANSION
 	{ "percentStstCurrent",	OBJECT_MODEL_FUNC((int32_t)(self->GetMotorCurrent(context.GetLastIndex(), 917))),								ObjectModelEntryFlags::notPanelDue },
 #endif
 #if SUPPORT_PHASE_STEPPING
@@ -271,7 +271,7 @@ constexpr ObjectModelTableEntry Move::objectModelTable[] =
 	{ "microstepping",		OBJECT_MODEL_FUNC(self, 13),																										ObjectModelEntryFlags::notPanelDue },
 	{ "nonlinear",			OBJECT_MODEL_FUNC(self, 11),																										ObjectModelEntryFlags::notPanelDue },
 	{ "percentCurrent",		OBJECT_MODEL_FUNC((int32_t)(self->GetMotorCurrent(context.GetLastIndex(), 913))),													ObjectModelEntryFlags::notPanelDue },
-#ifndef DUET_NG
+#if HAS_SMART_DRIVERS || SUPPORT_CAN_EXPANSION
 	{ "percentStstCurrent",	OBJECT_MODEL_FUNC((int32_t)(self->GetMotorCurrent(context.GetLastIndex(), 917))),													ObjectModelEntryFlags::notPanelDue },
 #endif
 #if SUPPORT_PHASE_STEPPING
@@ -319,13 +319,8 @@ constexpr uint8_t Move::objectModelTableDescriptor[] =
 	6 + (int)(HAS_MASS_STORAGE || HAS_SBC_INTERFACE),
 	2,
 	4,
-#ifdef DUET_NG	// Duet WiFi/Ethernet doesn't have settable standstill current and doesn't support phase stepping
-	23,																		// section 9: move.axes[]
-	16,																		// section 10: move.extruders[]
-#else
-	24 + SUPPORT_PHASE_STEPPING,											// section 9: move.axes[]
-	17 + SUPPORT_PHASE_STEPPING,											// section 10: move.extruders[]
-#endif
+	23 + (HAS_SMART_DRIVERS || SUPPORT_CAN_EXPANSION) + SUPPORT_PHASE_STEPPING,	// section 9: move.axes[]
+	16 + (HAS_SMART_DRIVERS || SUPPORT_CAN_EXPANSION) + SUPPORT_PHASE_STEPPING,	// section 10: move.extruders[]
 	3,																		// section 11: move.extruders[].nonlinear
 	2,																		// section 12: move.axes[].microstepping
 	2,																		// section 13: move.extruders[].microstepping
@@ -432,13 +427,13 @@ void Move::Init() noexcept
 		driverTimingMicroseconds[driver][2] = DefaultSetupTimeMicroseconds;
 		driverTimingMicroseconds[driver][3] = DefaultHoldTimeMicroseconds;
 #else
-		enableValues[driver] = 0;														// assume active low enable signal
+		enableValues[driver] = DriverEnableActiveHigh;
 #endif
 		// Set up the control pins
 		SetPinMode(STEP_PINS[driver], OUTPUT_LOW);
 		SetPinMode(DIRECTION_PINS[driver], OUTPUT_LOW);
 #if !defined(DUET3) && !defined(DUET3MINI)
-		SetPinMode(DriverEnablePins[driver], OUTPUT_HIGH);									// this is OK for the TMC2660 CS pins too
+		SetPinMode(DriverEnablePins[driver], DriverEnableActiveHigh ? OUTPUT_LOW : OUTPUT_HIGH);
 #endif
 
 		brakeOffDelays[driver] = 0;
@@ -3309,8 +3304,10 @@ void Move::PollOneDriver(size_t driver) noexcept
 		// Don't raise driver error events while we are being tested by ATE
 		const bool reportError = !CanInterface::InTestMode() && HasDriverError(driver);
 		StandardDriverStatus stat((reportError) ? ((uint32_t)1u << StandardDriverStatus::ExternDriverErrorBitPos) : 0);
-#else
+#elif HAS_SMART_DRIVERS
 		StandardDriverStatus stat = SmartDrivers::GetStatus(driver, true, true);
+#else
+		StandardDriverStatus stat;
 #endif
 #if HAS_SMART_DRIVERS
 		const LocalDriversBitmap mask = LocalDriversBitmap::MakeFromBits(driver);

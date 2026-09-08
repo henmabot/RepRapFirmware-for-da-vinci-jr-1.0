@@ -40,7 +40,6 @@
 #include "Logger.h"
 #include "Tasks.h"
 #include <Cache.h>
-#include <Hardware/Spi/SharedSpiDevice.h>
 #include <Math/Isqrt.h>
 #include <Hardware/I2C.h>
 #include <Hardware/NonVolatileMemory.h>
@@ -497,10 +496,6 @@ void Platform::Init() noexcept
 
 	// Initialise the IO port subsystem
 	IoPort::Init();
-
-	// Shared SPI subsystem
-	SharedSpiDevice::Init();
-
 	// File management and SD card interfaces
 	for (size_t i = 0; i < NumSdCards; ++i)
 	{
@@ -582,9 +577,7 @@ void Platform::Init() noexcept
 
 	// If MISO from a MAX31856 board breaks after initialising the MAX31856 then if MISO floats low and reads as all zeros, this looks like a temperature of 0C and no error.
 	// Enable the pullup resistor, with luck this will make it float high instead.
-#if SAME5x
-	// nothing to do here
-#else
+#if SUPPORT_SPI_SENSORS && !SAME5x
 	SetPinMode(APIN_USART_SSPI_MISO, INPUT_PULLUP, false);
 #endif
 
@@ -3570,6 +3563,8 @@ void Platform::SetBoardType() noexcept
 	board = GetMB6XDBoardType();
 #elif defined(FMDC_V02) || defined(FMDC_V03)
 	board = BoardType::FMDC;
+#elif defined(DA_VINCI_JR)
+	board = BoardType::DaVinciJr_10;
 #elif defined(DUET_NG)
 	// Set up the VSSA sense pin. Older Duet WiFis don't have it connected, so we enable the pulldown resistor to keep it inactive.
 	SetPinMode(VssaSensePin, INPUT_PULLUP, false);
@@ -3617,6 +3612,8 @@ const char *_ecv_array Platform::GetElectronicsString() const noexcept
 	case BoardType::Duet3_6XD_v102:			return "Duet 3 " BOARD_SHORT_NAME " v1.02 or later";
 #elif defined(FMDC_V02) || defined(FMDC_V03)
 	case BoardType::FMDC:					return "Duet 3 " BOARD_SHORT_NAME;
+#elif defined(DA_VINCI_JR)
+	case BoardType::DaVinciJr_10:			return "Da Vinci Jr 1.0";
 #elif defined(DUET_NG)
 	// This is the string that the Duet 2 ATE uses to identify the board. The version number must be at the end.
 	case BoardType::DuetWiFi_10:			return "Duet WiFi 1.0 or 1.01";
@@ -3654,6 +3651,8 @@ const char *_ecv_array Platform::GetBoardString() const noexcept
 	case BoardType::Duet3_6XD_v102:			return "duet3mb6xd102";
 #elif defined(FMDC_V02) || defined(FMDC_V03)
 	case BoardType::FMDC:					return "fmdc";
+#elif defined(DA_VINCI_JR)
+	case BoardType::DaVinciJr_10:			return "davincijr10";
 #elif defined(DUET_NG)
 	case BoardType::DuetWiFi_10:			return "duetwifi10";
 	case BoardType::DuetWiFi_102:			return "duetwifi102";

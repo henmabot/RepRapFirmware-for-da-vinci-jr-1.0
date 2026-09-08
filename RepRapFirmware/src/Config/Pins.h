@@ -4,26 +4,8 @@
 // Load Pins_<platform>.h
 
 #if !defined(PLATFORM)
-# if defined(__SAM4E8E__)
-#  define PLATFORM DuetNG
-# elif defined(__SAME70Q20B__) || defined(__SAME70Q21B__) || defined(__SAMV71Q20B__)
-#  if defined(DUET3_MB6HC)
-#   define PLATFORM Duet3_MB6HC
-#   define DUET3		1
-#  elif defined(DUET3_MB6XD)
-#   define PLATFORM Duet3_MB6XD
-#   define DUET3		1
-#  else
-#   error Unknown platform
-#  endif
-# elif defined(PCCB)
-#  define PLATFORM Pccb
-# elif defined(DUET3MINI_V04)
-#  define DUET3MINI		1
-#  define PLATFORM Duet3Mini
-# elif defined(FMDC_V02) || defined(FMDC_V03)
-#  define DUET3MINI		1
-#  define PLATFORM FMDC
+# if defined(__SAM4E8E__) && defined(DA_VINCI_JR)
+#  define PLATFORM DaVinciJr
 # else
 #  error Unknown platform
 # endif
