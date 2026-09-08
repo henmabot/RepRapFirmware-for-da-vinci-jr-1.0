@@ -525,8 +525,10 @@ StandardDriverStatus Move::GetLocalDriverStatus(size_t driver) const noexcept
 {
 #if defined(DUET3_MB6XD)
 	return StandardDriverStatus((HasDriverError(driver)) ? (uint32_t)1u << StandardDriverStatus::ExternDriverErrorBitPos : 0);
-#else
+#elif HAS_SMART_DRIVERS
 	return SmartDrivers::GetStatus(driver, false, false);		// it's safe to call this even when driver >= MaxSmartDrivers
+#else
+	return StandardDriverStatus();
 #endif
 }
 

@@ -27,13 +27,19 @@ void UART1_Handler(void) noexcept
 
 void SerialInit() noexcept
 {
-	SetPinFunction(APIN_Serial0_RXD, Serial0PeriphMode);
-	SetPinFunction(APIN_Serial0_TXD, Serial0PeriphMode);
-	EnablePullup(APIN_Serial0_RXD);
+	if (APIN_Serial0_RXD != NoPin)
+	{
+		SetPinFunction(APIN_Serial0_RXD, Serial0PeriphMode);
+		SetPinFunction(APIN_Serial0_TXD, Serial0PeriphMode);
+		EnablePullup(APIN_Serial0_RXD);
+	}
 
-	SetPinFunction(APIN_SerialWiFi_RXD, SerialWiFiPeriphMode);
-	SetPinFunction(APIN_SerialWiFi_TXD, SerialWiFiPeriphMode);
-	EnablePullup(APIN_SerialWiFi_RXD);
+	if (APIN_SerialWiFi_RXD != NoPin)
+	{
+		SetPinFunction(APIN_SerialWiFi_RXD, SerialWiFiPeriphMode);
+		SetPinFunction(APIN_SerialWiFi_TXD, SerialWiFiPeriphMode);
+		EnablePullup(APIN_SerialWiFi_RXD);
+	}
 }
 
 void SdhcInit() noexcept
@@ -46,6 +52,7 @@ void SdhcInit() noexcept
 	}
 }
 
+#ifdef I2C_IFACE
 void WireInit() noexcept
 {
 	pmc_enable_periph_clk(WIRE_INTERFACE_ID);
@@ -54,6 +61,7 @@ void WireInit() noexcept
 }
 
 TwoWire Wire(WIRE_INTERFACE, TWI_Data, TWI_CK, TWIPeriphMode, WireInit);
+#endif
 
 
 // Device initialisation

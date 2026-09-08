@@ -14,7 +14,9 @@
 #include <ObjectModel/ObjectModel.h>
 #include <General/NamedEnum.h>
 
-#if defined(DUET3_MB6HC) && HAS_WIFI_NETWORKING
+#if !HAS_NETWORKING
+const size_t MaxNetworkInterfaces = 0;
+#elif defined(DUET3_MB6HC) && HAS_WIFI_NETWORKING
 const size_t MaxNetworkInterfaces = 2;
 #elif defined(DUET3_MB6HC) || defined(DUET3_MB6XD) || defined(DUET_NG) || defined(DUET_M) || defined(PCCB) || defined(DUET3MINI)
 const size_t MaxNetworkInterfaces = 1;

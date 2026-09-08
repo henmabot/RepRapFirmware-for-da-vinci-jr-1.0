@@ -124,6 +124,8 @@ enum class BoardType : uint8_t
 	Duet3_6XD_v102 = 4,
 #elif defined(FMDC_V02) || defined(FMDC_V03)
 	FMDC,
+#elif defined(DA_VINCI_JR)
+	DaVinciJr_10 = 1,
 #elif defined(DUET_NG)
 	DuetWiFi_10 = 1,
 	DuetWiFi_102 = 2,

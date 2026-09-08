@@ -1,4 +1,4 @@
-name: Build Duet 2 WiFi firmware
+name: Build Da Vinci Jr firmware
 
 on:
   workflow_dispatch:
@@ -32,8 +32,8 @@ jobs:
       - name: Upload firmware
         uses: actions/upload-artifact@v4
         with:
-          name: reprapfirmware-duet2-wifi
+          name: reprapfirmware-da-vinci-jr-1.0
           path: |
-            build/RepRapFirmware/Duet2CombinedFirmware.bin
-            build/RepRapFirmware/Duet2CombinedFirmware.elf
-            build/RepRapFirmware/Duet2CombinedFirmware.map
+            build/RepRapFirmware/DaVinciJrFirmware.bin
+            build/RepRapFirmware/DaVinciJrFirmware.elf
+            build/RepRapFirmware/DaVinciJrFirmware.map
