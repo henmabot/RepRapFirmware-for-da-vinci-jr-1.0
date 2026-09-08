@@ -3,55 +3,29 @@
 
 #include <PinDescription.h>
 
-// Pins definition file for Duet 2 WiFi/Ethernet
+// Pins definition file for Duet 2 WiFi
 // This file is normally #included by #including RepRapFirmware.h, which includes this file
 
 #define BOARD_NAME_WIFI			"Duet 2 WiFi"
-#define BOARD_NAME_ETHERNET		"Duet 2 Ethernet"
-#define BOARD_NAME_SBC			"Duet 2 + SBC"
 #define BOARD_SHORT_NAME_WIFI		"2WiFi"
-#define BOARD_SHORT_NAME_ETHERNET	"2Ethernet"
-#define BOARD_SHORT_NAME_SBC		"2SBC"
 
-#if defined(USE_SBC)
-
-#define FIRMWARE_NAME			"RepRapFirmware for Duet 2 SBC"
-#define DEFAULT_BOARD_TYPE	 	BoardType::Duet2SBC_10
-#define IAP_FIRMWARE_FILE		"Duet2Firmware_SBC.bin"
-#define IAP_UPDATE_FILE_SBC		"Duet2_SBCiap32_SBC.bin"
-
-#else
-
-#define FIRMWARE_NAME			"RepRapFirmware for Duet 2 WiFi/Ethernet"
+#define FIRMWARE_NAME			"RepRapFirmware for Duet 2 WiFi"
 #define DEFAULT_BOARD_TYPE	 	BoardType::DuetWiFi_10
 #define IAP_FIRMWARE_FILE		"Duet2CombinedFirmware.bin"
-#define IAP_UPDATE_FILE			"Duet2_SDiap32_WiFiEth.bin"	// using the same IAP file for both Duet WiFi and Duet Ethernet
+#define IAP_UPDATE_FILE			"Duet2_SDiap32_WiFiEth.bin"
 #define WIFI_FIRMWARE_FILE		"DuetWiFiServer.bin"
-
-#endif
 
 constexpr uint32_t IAP_IMAGE_START = 0x20018000;	// IAP is loaded into the last 32kb of RAM
 
 // Features definition
 #define HAS_LWIP_NETWORKING		0
 
-#if defined(USE_SBC)
-# define HAS_WIFI_NETWORKING	0
-# define HAS_W5500_NETWORKING	0
-# define HAS_SBC_INTERFACE		1
-# define HAS_MASS_STORAGE		0
-#else
-# define HAS_WIFI_NETWORKING	1
-# define HAS_W5500_NETWORKING	1
-# define HAS_SBC_INTERFACE		0
-#endif
+#define HAS_WIFI_NETWORKING		1
+#define HAS_W5500_NETWORKING	0
+#define HAS_SBC_INTERFACE		0
 
 #define HAS_CPU_TEMP_SENSOR		1
-#if defined(USE_SBC)
-# define HAS_HIGH_SPEED_SD		0
-#else
-# define HAS_HIGH_SPEED_SD		1
-#endif
+#define HAS_HIGH_SPEED_SD		1
 #define SUPPORT_TMC2660			1
 #define TMC2660_USES_USART		1
 #define HAS_VOLTAGE_MONITOR		1
@@ -69,18 +43,12 @@ constexpr uint32_t IAP_IMAGE_START = 0x20018000;	// IAP is loaded into the last 
 
 #define VARIABLE_NUM_DRIVERS	SUPPORT_12864_LCD	// nonzero means that some pins may only support drivers if not used for other purposes e.g. LCD
 
-#if defined(USE_SBC)
-# define SUPPORT_HTTP			0
-# define SUPPORT_FTP			0
-# define SUPPORT_TELNET			0
-#else
-# define SUPPORT_HTTP			1
-# define SUPPORT_FTP			1
-# define SUPPORT_TELNET			1
-# define SUPPORT_ROTARY_DELTA	0					// leave out rotary delta kinematics to save flash space
-# define SUPPORT_HANGPRINTER	0					// leave out hangprinter kinematics to save flash space
-# define SUPPORT_FIVEBARSCARA	0					// leave out 5-bar SCARA kinematics to save flash space
-#endif
+#define SUPPORT_HTTP			1
+#define SUPPORT_FTP			1
+#define SUPPORT_TELNET			1
+#define SUPPORT_ROTARY_DELTA	0					// leave out rotary delta kinematics to save flash space
+#define SUPPORT_HANGPRINTER	0					// leave out hangprinter kinematics to save flash space
+#define SUPPORT_FIVEBARSCARA	0					// leave out 5-bar SCARA kinematics to save flash space
 
 #define SUPPORT_ASYNC_MOVES		0
 
@@ -505,35 +473,6 @@ constexpr Pin EspDataReadyPin = PortDPin(31);		// Input from the WiFi module ind
 constexpr Pin SamTfrReadyPin = PortDPin(30);		// Output from the SAM to the WiFi module indicating we can accept a data transfer (ESP GPIO4 via 7474)
 constexpr Pin SamCsPin = PortAPin(11);				// SPI NPCS pin, input from WiFi module
 
-// Duet pin numbers to control the W5500 interface on the Duet Ethernet
-#define W5500_SPI				SPI
-#define W5500_SPI_INTERFACE_ID	ID_SPI
-#define W5500_SPI_IRQn			SPI_IRQn
-#define W5500_SPI_HANDLER		SPI_Handler
-
-constexpr Pin APIN_W5500_SPI_MOSI = SPI_MOSI;
-constexpr Pin APIN_W5500_SPI_MISO = SPI_MISO;
-constexpr Pin APIN_W5500_SPI_SCK  = SPI_SCK;
-constexpr Pin APIN_W5500_SPI_SS0  = SPI_SS0;
-
-constexpr Pin W5500ResetPin = PortEPin(4);			// Low on this in holds the W5500 module in reset (ESP_RESET)
-constexpr Pin W5500InterruptPin = PortDPin(31);		// W5500 interrupt output, active low
-constexpr Pin W5500ModuleSensePin = PortAPin(5);	// URXD1, tied to ground on the Ethernet module
-constexpr Pin W5500SsPin = PortAPin(11);			// SPI NPCS pin, input from W5500 module
-
-// Duet pin numbers for the SBC interface
-#define SBC_SPI					SPI
-#define SBC_SPI_INTERFACE_ID	ID_SPI
-#define SBC_SPI_IRQn			SPI_IRQn
-#define SBC_SPI_HANDLER			SPI_Handler
-constexpr Pin APIN_SBC_SPI_MOSI = SPI_MOSI;
-constexpr Pin APIN_SBC_SPI_MISO = SPI_MISO;
-constexpr Pin APIN_SBC_SPI_SCK  = SPI_SCK;
-constexpr Pin APIN_SBC_SPI_SS0  = SPI_SS0;
-constexpr GpioPinFunction SBCPinPeriphMode = SPIPeriphMode;
-
-constexpr Pin SbcTfrReadyPin = PortDPin(31);
-
 // Timer allocation (no network timer on DuetNG)
 // TC0 channel 0 is used for FAN2
 // TC0 channel 1 is currently unused (may use it for a heater or a fan)
@@ -545,21 +484,8 @@ constexpr Pin SbcTfrReadyPin = PortDPin(31);
 #define STEP_TC_ID			ID_TC2
 
 // DMA channel allocation
-#if HAS_SBC_INTERFACE
-constexpr DmaChannel DmacChanSbcTx = 1;
-constexpr DmaChannel DmacChanSbcRx = 2;
-#endif
-
-#if HAS_WIFI_NETWORKING
 constexpr DmaChannel DmacChanWiFiTx = 1;
 constexpr DmaChannel DmacChanWiFiRx = 2;
-#endif
-
-#if HAS_W5500_NETWORKING
-// We can use the same DMA channels as for WiFi because only one of them will be present
-constexpr DmaChannel DmacChanW5500Tx = 1;
-constexpr DmaChannel DmacChanW5500Rx = 2;
-#endif
 
 namespace StepPins
 {
@@ -579,13 +505,13 @@ namespace StepPins
 	// Set the specified step pins high. This needs to be fast.
 	static inline __attribute__((always_inline)) void StepDriversHigh(uint32_t driverMap) noexcept
 	{
-		PIOD->PIO_SODR = driverMap;				// on Duet WiFi/Ethernet all step pins are on port D
+		PIOD->PIO_SODR = driverMap;				// on Duet WiFi all step pins are on port D
 	}
 
 	// Set all step pins low. This needs to be fast.
 	static inline __attribute__((always_inline)) void StepDriversLow(uint32_t driverMap) noexcept
 	{
-		PIOD->PIO_CODR = driverMap;				// on Duet WiFi/Ethernet all step pins are on port D
+		PIOD->PIO_CODR = driverMap;				// on Duet WiFi all step pins are on port D
 	}
 }
 

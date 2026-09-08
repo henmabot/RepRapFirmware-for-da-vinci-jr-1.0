@@ -432,7 +432,7 @@ void Platform::Init() noexcept
 
 	// Make sure any WiFi module is held in reset
 #if defined(DUET_NG)
-	SetPinMode(EspResetPin, OUTPUT_LOW);						// reset the WiFi module or the W5500
+	SetPinMode(EspResetPin, OUTPUT_LOW);						// reset the WiFi module
 	SetPinMode(EspEnablePin, OUTPUT_LOW);
 #elif defined(DUET3_MB6HC)
 	SetPinMode(EspEnablePin, OUTPUT_LOW);						// make sure that the Wifi module if present is disabled
@@ -1056,7 +1056,7 @@ void Platform::Spin() noexcept
 				reported = true;
 			}
 #elif defined(DUET_NG)
-			if (   (board == BoardType::DuetWiFi_102 || board == BoardType::DuetEthernet_102)
+			if (   board == BoardType::DuetWiFi_102
 				&& digitalRead(VssaSensePin)
 			   )
 			{
@@ -3571,9 +3571,6 @@ void Platform::SetBoardType() noexcept
 #elif defined(FMDC_V02) || defined(FMDC_V03)
 	board = BoardType::FMDC;
 #elif defined(DUET_NG)
-	// Get ready to test whether the Ethernet module is present, so that we avoid additional delays
-	SetPinMode(W5500ModuleSensePin, INPUT_PULLUP);			// set our UART receive pin to be an input pin and enable the pullup
-
 	// Set up the VSSA sense pin. Older Duet WiFis don't have it connected, so we enable the pulldown resistor to keep it inactive.
 	SetPinMode(VssaSensePin, INPUT_PULLUP, false);
 	delayMicroseconds(10);
@@ -3587,19 +3584,7 @@ void Platform::SetBoardType() noexcept
 		SetPinMode(VssaSensePin, INPUT, true);
 	}
 
-# if defined(USE_SBC)
-	board = (vssaSenseWorking) ? BoardType::Duet2SBC_102 : BoardType::Duet2SBC_10;
-# else
-	// Test whether the Ethernet module is present
-	if (digitalRead(W5500ModuleSensePin))					// the Ethernet module has this pin grounded
-	{
-		board = (vssaSenseWorking) ? BoardType::DuetWiFi_102 : BoardType::DuetWiFi_10;
-	}
-	else
-	{
-		board = (vssaSenseWorking) ? BoardType::DuetEthernet_102 : BoardType::DuetEthernet_10;
-	}
-# endif
+	board = (vssaSenseWorking) ? BoardType::DuetWiFi_102 : BoardType::DuetWiFi_10;
 #elif defined(DUET_M)
 	board = BoardType::DuetM_10;
 #elif defined(PCCB_10)
@@ -3636,10 +3621,6 @@ const char *_ecv_array Platform::GetElectronicsString() const noexcept
 	// This is the string that the Duet 2 ATE uses to identify the board. The version number must be at the end.
 	case BoardType::DuetWiFi_10:			return "Duet WiFi 1.0 or 1.01";
 	case BoardType::DuetWiFi_102:			return "Duet WiFi 1.02 or later";
-	case BoardType::DuetEthernet_10:		return "Duet Ethernet 1.0 or 1.01";
-	case BoardType::DuetEthernet_102:		return "Duet Ethernet 1.02 or later";
-	case BoardType::Duet2SBC_10:			return "Duet 2 + SBC 1.0 or 1.01";
-	case BoardType::Duet2SBC_102:			return "Duet 2 + SBC 1.02 or later";
 #elif defined(DUET_M)
 	case BoardType::DuetM_10:				return "Duet Maestro 1.0";
 #elif defined(PCCB_10)
@@ -3676,10 +3657,6 @@ const char *_ecv_array Platform::GetBoardString() const noexcept
 #elif defined(DUET_NG)
 	case BoardType::DuetWiFi_10:			return "duetwifi10";
 	case BoardType::DuetWiFi_102:			return "duetwifi102";
-	case BoardType::DuetEthernet_10:		return "duetethernet10";
-	case BoardType::DuetEthernet_102:		return "duetethernet102";
-	case BoardType::Duet2SBC_10:			return "duet2sbc10";
-	case BoardType::Duet2SBC_102:			return "duet2sbc102";
 #elif defined(DUET_M)
 	case BoardType::DuetM_10:				return "duetmaestro100";
 #elif defined(PCCB_10)
@@ -3693,24 +3670,14 @@ const char *_ecv_array Platform::GetBoardString() const noexcept
 
 #ifdef DUET_NG
 
-// Return true if this is a Duet WiFi, false if it is a Duet Ethernet
-bool Platform::IsDuetWiFi() const noexcept
-{
-	return board == BoardType::DuetWiFi_10 || board == BoardType::DuetWiFi_102;
-}
-
 const char *_ecv_array Platform::GetBoardName() const noexcept
 {
-	return (board == BoardType::Duet2SBC_10 || board == BoardType::Duet2SBC_102)
-			? BOARD_NAME_SBC
-			: (IsDuetWiFi()) ? BOARD_NAME_WIFI : BOARD_NAME_ETHERNET;
+	return BOARD_NAME_WIFI;
 }
 
 const char *_ecv_array Platform::GetBoardShortName() const noexcept
 {
-	return (board == BoardType::Duet2SBC_10 || board == BoardType::Duet2SBC_102)
-			? BOARD_SHORT_NAME_SBC
-			: (IsDuetWiFi()) ? BOARD_SHORT_NAME_WIFI : BOARD_SHORT_NAME_ETHERNET;
+	return BOARD_SHORT_NAME_WIFI;
 }
 
 #endif
