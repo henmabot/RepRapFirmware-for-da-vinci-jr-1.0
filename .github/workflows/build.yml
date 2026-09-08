@@ -1,0 +1,39 @@
+name: Build firmware
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes just xz-utils
+
+      - name: Install ARM GNU Toolchain 13.2.Rel1
+        run: |
+          curl --fail --location --retry 3 \
+            --output arm-gnu-toolchain.tar.xz \
+            'https://developer.arm.com/-/media/Files/downloads/gnu/13.2.Rel1/binrel/arm-gnu-toolchain-13.2.Rel1-x86_64-arm-none-eabi.tar.xz?rev=e434b9ea4afc4ed7998329566b764309&hash=CA590209F5774EE1C96E6450E14A3E26'
+          tar --extract --file arm-gnu-toolchain.tar.xz
+          echo "$GITHUB_WORKSPACE/arm-gnu-toolchain-13.2.Rel1-x86_64-arm-none-eabi/bin" >> "$GITHUB_PATH"
+
+      - name: Build firmware
+        run: just build
+
+      - name: Upload firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: reprapfirmware-da-vinci-jr-1.0
+          path: |
+            build/RepRapFirmware/**/*.bin
+            build/RepRapFirmware/**/*.elf
+            build/RepRapFirmware/**/*.map
