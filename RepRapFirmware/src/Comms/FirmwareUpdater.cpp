@@ -104,18 +104,12 @@ namespace FirmwareUpdater
 		{
 # if HAS_WIFI_NETWORKING
 		case WifiExternalFirmwareModule:
-# ifdef DUET_NG
-			if (reprap.GetPlatform().IsDuetWiFi())
-# endif
 			{
 				reprap.GetNetwork().ResetWiFiForUpload(true);
 			}
 			break;
 
 		case WifiFirmwareModule:
-# ifdef DUET_NG
-			if (reprap.GetPlatform().IsDuetWiFi())
-# endif
 			{
 				WifiFirmwareUploader *_ecv_null const uploader = reprap.GetNetwork().GetWifiUploader();
 				if (uploader != nullptr)

@@ -1801,9 +1801,6 @@ OutputBuffer *_ecv_null RepRap::GetConfigResponse() noexcept
 
 #if HAS_WIFI_NETWORKING
 	// If we have WiFi networking, send the WiFi module firmware version
-# ifdef DUET_NG
-	if (platform->IsDuetWiFi())
-# endif
 	{
 		response->catf(",\"dwsVersion\":\"%.s\"", network->GetWiFiServerVersion());
 	}

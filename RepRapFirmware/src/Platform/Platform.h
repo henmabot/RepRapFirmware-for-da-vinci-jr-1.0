@@ -127,10 +127,6 @@ enum class BoardType : uint8_t
 #elif defined(DUET_NG)
 	DuetWiFi_10 = 1,
 	DuetWiFi_102 = 2,
-	DuetEthernet_10 = 3,
-	DuetEthernet_102 = 4,
-	Duet2SBC_10 = 5,
-	Duet2SBC_102 = 6,
 #elif defined(DUET_M)
 	DuetM_10 = 1,
 #elif defined(PCCB_10)
@@ -262,7 +258,7 @@ public:
 	size_t GetNumGpOutputsToReport() const noexcept;
 #endif
 
-#if defined(DUET_NG) || defined(DUET3MINI)
+#if defined(DUET3MINI)
 	bool IsDuetWiFi() const noexcept;
 	bool HasESP32() const noexcept;
 #endif
