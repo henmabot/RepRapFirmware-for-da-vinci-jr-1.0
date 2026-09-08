@@ -9,38 +9,8 @@
 #include <RepRapFirmware.h>
 #include <AnalogIn.h>
 #include <AnalogOut.h>
-#include <pmc/pmc.h>
 
-AsyncSerial serialUart(UART0, UART0_IRQn, ID_UART0, 512, 512, 	[](AsyncSerial*) noexcept { }, [](AsyncSerial*) noexcept { });
-AsyncSerial serialWiFi(UART1, UART1_IRQn, ID_UART1, 512, 512,	[](AsyncSerial*) noexcept { }, [](AsyncSerial*) noexcept { });
 SerialCDC serialUSB;
-
-void UART0_Handler(void) noexcept
-{
-	serialUart.IrqHandler();
-}
-
-void UART1_Handler(void) noexcept
-{
-	serialWiFi.IrqHandler();
-}
-
-void SerialInit() noexcept
-{
-	if (APIN_Serial0_RXD != NoPin)
-	{
-		SetPinFunction(APIN_Serial0_RXD, Serial0PeriphMode);
-		SetPinFunction(APIN_Serial0_TXD, Serial0PeriphMode);
-		EnablePullup(APIN_Serial0_RXD);
-	}
-
-	if (APIN_SerialWiFi_RXD != NoPin)
-	{
-		SetPinFunction(APIN_SerialWiFi_RXD, SerialWiFiPeriphMode);
-		SetPinFunction(APIN_SerialWiFi_TXD, SerialWiFiPeriphMode);
-		EnablePullup(APIN_SerialWiFi_RXD);
-	}
-}
 
 void SdhcInit() noexcept
 {
@@ -52,25 +22,11 @@ void SdhcInit() noexcept
 	}
 }
 
-#ifdef I2C_IFACE
-void WireInit() noexcept
-{
-	pmc_enable_periph_clk(WIRE_INTERFACE_ID);
-	NVIC_DisableIRQ(WIRE_ISR_ID);
-	NVIC_ClearPendingIRQ(WIRE_ISR_ID);
-}
-
-TwoWire Wire(WIRE_INTERFACE, TWI_Data, TWI_CK, TWIPeriphMode, WireInit);
-#endif
-
-
 // Device initialisation
 void DeviceInit() noexcept
 {
 	LegacyAnalogIn::AnalogInInit();
 	AnalogOut::Init();
-
-	SerialInit();
 	SdhcInit();
 }
 

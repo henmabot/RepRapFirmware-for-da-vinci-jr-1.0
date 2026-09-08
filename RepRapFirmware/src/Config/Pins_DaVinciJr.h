@@ -75,13 +75,13 @@ constexpr Pin UsbVBusPin = NoPin;
 
 // X, Y, Z, E1 motor wiring. The TB62269 ENABLE inputs are active high.
 constexpr Pin DriverEnablePins[NumDirectDrivers] = {
-    PortDPin(3), PortDPin(5), PortDPin(6), PortDPin(16)
+	PortDPin(3), PortDPin(5), PortDPin(6), PortDPin(16)
 };
 constexpr Pin STEP_PINS[NumDirectDrivers] = {
-    PortCPin(23), PortCPin(22), PortCPin(20), PortCPin(28)
+	PortCPin(23), PortCPin(22), PortCPin(20), PortCPin(28)
 };
 constexpr Pin DIRECTION_PINS[NumDirectDrivers] = {
-    PortDPin(4), PortEPin(2), PortDPin(7), PortDPin(17)
+	PortDPin(4), PortEPin(2), PortDPin(7), PortDPin(17)
 };
 constexpr bool DriverEnableActiveHigh = true;
 constexpr uint32_t DefaultStandstillCurrentPercent = 100;
@@ -106,19 +106,9 @@ constexpr IRQn SdhcIRQn = HSMCI_IRQn;
 constexpr uint32_t ExpectedSdCardSpeed = 20000000;
 constexpr Pin HsmciClockPin = PortAPin(29);
 constexpr Pin HsmciOtherPins[] = {
-    PortAPin(28), PortAPin(30), PortAPin(31), PortAPin(26), PortAPin(27)
+	PortAPin(28), PortAPin(30), PortAPin(31), PortAPin(26), PortAPin(27)
 };
 constexpr GpioPinFunction HsmciPinsFunction = GpioPinFunction::C;
-
-
-// Serial interfaces are not mapped yet.
-constexpr Pin APIN_Serial0_RXD = NoPin;
-constexpr Pin APIN_Serial0_TXD = NoPin;
-constexpr GpioPinFunction Serial0PeriphMode = GpioPinFunction::A;
-constexpr Pin APIN_SerialWiFi_RXD = NoPin;
-constexpr Pin APIN_SerialWiFi_TXD = NoPin;
-constexpr GpioPinFunction SerialWiFiPeriphMode = GpioPinFunction::A;
-
 // Step pulse timer. All four step pins are on PIOC.
 #define STEP_TC          (TC0)
 #define STEP_TC_CHAN     (2)
@@ -285,25 +275,24 @@ constexpr PinDescription PinTable[] =
 
 constexpr size_t NumNamedPins = ARRAY_SIZE(PinTable);
 constexpr size_t NumRealPins = 32 + 32 + 32 + 32 + 6;
-constexpr size_t NumVirtualPins = 0;
-static_assert(NumNamedPins == NumRealPins + NumVirtualPins);
+static_assert(NumNamedPins == NumRealPins);
 
 namespace StepPins
 {
-    static inline uint32_t CalcDriverBitmap(size_t driver) noexcept
-    {
-        return (driver < NumDirectDrivers) ? 1u << (STEP_PINS[driver] & 0x1Fu) : 0;
-    }
+	static inline uint32_t CalcDriverBitmap(size_t driver) noexcept
+	{
+		return (driver < NumDirectDrivers) ? 1u << (STEP_PINS[driver] & 0x1Fu) : 0;
+	}
 
-    static inline __attribute__((always_inline)) void StepDriversHigh(uint32_t driverMap) noexcept
-    {
-        PIOC->PIO_SODR = driverMap;
-    }
+	static inline __attribute__((always_inline)) void StepDriversHigh(uint32_t driverMap) noexcept
+	{
+		PIOC->PIO_SODR = driverMap;
+	}
 
-    static inline __attribute__((always_inline)) void StepDriversLow(uint32_t driverMap) noexcept
-    {
-        PIOC->PIO_CODR = driverMap;
-    }
+	static inline __attribute__((always_inline)) void StepDriversLow(uint32_t driverMap) noexcept
+	{
+		PIOC->PIO_CODR = driverMap;
+	}
 }
 
 #endif
