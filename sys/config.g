@@ -30,5 +30,5 @@ M564 H1 S1
 
 ; The three optical home sensors are high when triggered and are all at low end.
 M574 X1 S1 P"xstop"
-M574 Y1 S1 P"ystop"
+M574 Y2 S1 P"ystop"
 M574 Z1 S1 P"zstop"
