@@ -9,7 +9,7 @@ M584 X0 Y1 Z2 E3
 ; The stock TB62269 direction inputs are high for clockwise rotation.
 ; On the assembled printer, clockwise is +X, +Y, +Z, and positive extrusion.
 M569 P0 S1
-M569 P1 S1
+M569 P1 S0
 M569 P2 S1
 M569 P3 S1
 
