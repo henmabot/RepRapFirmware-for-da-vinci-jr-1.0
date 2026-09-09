@@ -37,3 +37,4 @@ jobs:
             build/RepRapFirmware/DaVinciJrFirmware.bin
             build/RepRapFirmware/DaVinciJrFirmware.elf
             build/RepRapFirmware/DaVinciJrFirmware.map
+            sys/
