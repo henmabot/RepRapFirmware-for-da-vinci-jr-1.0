@@ -7,9 +7,7 @@ M550 P"Da Vinci Jr 1.0"
 M584 X0 Y1 Z2 E3
 
 ; The stock TB62269 direction inputs are high for clockwise rotation.
-; S1 preserves that electrical direction as RRF's positive direction.
-; Verify each axis with a short G1 H2 jog before the first G28.
-; If an axis moves opposite to the requested sign, change only that driver's S value.
+; On the assembled printer, clockwise is +X, +Y, +Z, and positive extrusion.
 M569 P0 S1
 M569 P1 S1
 M569 P2 S1
