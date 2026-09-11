@@ -18,7 +18,8 @@ enum class MessageType : uint8_t
 	pong = 2,
 	gpioConfig = 3,
 	gpioWrite = 4,
-	gpioState = 5
+	gpioState = 5,
+	pwmWrite = 6
 };
 
 enum class GpioMode : uint8_t
@@ -26,7 +27,8 @@ enum class GpioMode : uint8_t
 	disabled = 0,
 	input = 1,
 	inputPullup = 2,
-	output = 3
+	output = 3,
+	pwm = 4
 };
 
 struct Frame

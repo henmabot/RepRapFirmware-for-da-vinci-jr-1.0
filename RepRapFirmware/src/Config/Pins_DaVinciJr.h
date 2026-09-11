@@ -62,7 +62,7 @@ constexpr size_t MaxExtruders = 1;
 constexpr size_t MaxAxesPlusExtruders = NumDirectDrivers;
 constexpr size_t MaxHeatersPerTool = 1;
 constexpr size_t MaxExtrudersPerTool = 1;
-constexpr size_t MaxFans = 1;
+constexpr size_t MaxFans = 2;
 constexpr unsigned int MaxTriggers = 16;
 constexpr size_t MaxSpindles = 1;
 constexpr size_t MaxLedStrips = 0;
@@ -125,6 +125,7 @@ constexpr GpioPinFunction HsmciPinsFunction = GpioPinFunction::C;
 #define PIN_READ(name)  { TcOutput::none, PwmOutput::none, AdcInput::none, PinCapability::read, name }
 #define PIN_WRITE(name) { TcOutput::none, PwmOutput::none, AdcInput::none, PinCapability::write, name }
 #define PIN_RW(name)    { TcOutput::none, PwmOutput::none, AdcInput::none, PinCapability::rw, name }
+#define PIN_PWM(name)   { TcOutput::none, PwmOutput::none, AdcInput::none, PinCapability::wpwm, name }
 
 constexpr PinDescription PinTable[] =
 {
@@ -280,17 +281,20 @@ constexpr PinDescription PinTable[] =
 	PIN_RW("lpc.nfc.scl"),			// PIO0_4
 	PIN_RW("lpc.nfc.sda"),			// PIO0_5
 	PIN_RW("lpc.nfc.tx"),			// PIO3_0
-	PIN_RW("lpc.nfc.rx")			// PIO3_1
+	PIN_RW("lpc.nfc.rx"),			// PIO3_1
+	PIN_PWM("lpc.fan"),			// PIO2_5 hotend fan
+	PIN_PWM("lpc.reflowfan")		// PIO1_10 reflow fan
 };
 
 #undef PIN_NONE
 #undef PIN_READ
 #undef PIN_WRITE
 #undef PIN_RW
+#undef PIN_PWM
 
 constexpr size_t NumNamedPins = ARRAY_SIZE(PinTable);
 constexpr size_t NumRealPins = 32 + 32 + 32 + 32 + 6;
-constexpr uint8_t LpcPinIds[] = { 0x27, 0x21, 0x06, 0x2A, 0x04, 0x05, 0x30, 0x31 };
+constexpr uint8_t LpcPinIds[] = { 0x27, 0x21, 0x06, 0x2A, 0x04, 0x05, 0x30, 0x31, 0x25, 0x1A };
 constexpr size_t NumLpcPins = ARRAY_SIZE(LpcPinIds);
 constexpr Pin FirstLpcPin = NumRealPins;
 static_assert(NumNamedPins == NumRealPins + NumLpcPins);

@@ -12,6 +12,7 @@ bool IsOnline() noexcept;
 bool SetPinMode(Pin pin, PinMode mode) noexcept;
 bool ReadPin(Pin pin) noexcept;
 void WritePin(Pin pin, bool high) noexcept;
+void WritePwm(Pin pin, float duty, uint16_t frequency) noexcept;
 
 }
 

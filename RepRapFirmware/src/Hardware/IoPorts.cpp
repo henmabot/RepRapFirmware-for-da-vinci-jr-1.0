@@ -594,7 +594,11 @@ uint16_t IoPort::ReadAnalog() const noexcept
 
 /*static*/ void IoPort::WriteAnalog(Pin pin, float pwm, uint16_t freq) noexcept
 {
-	if (!IsLpcPin(pin))
+	if (IsLpcPin(pin))
+	{
+		LpcInterface::WritePwm(pin, pwm, freq);
+	}
+	else
 	{
 		AnalogOut::Write(pin, pwm, freq);
 	}

@@ -11,6 +11,8 @@ namespace LpcInterface
 static LpcProtocol::Decoder decoder;
 static LpcProtocol::GpioMode pinModes[NumLpcPins];
 static bool pinValues[NumLpcPins];
+static uint16_t pwmValues[NumLpcPins];
+static uint16_t pwmFrequencies[NumLpcPins];
 static bool online;
 static uint32_t lastPingSent;
 static uint32_t lastPongReceived;
@@ -40,6 +42,20 @@ static void SendGpioConfig(size_t index) noexcept
 	Send(LpcProtocol::MessageType::gpioConfig, payload, sizeof(payload));
 }
 
+static void SendPwm(size_t index) noexcept
+{
+	const uint16_t duty = pwmValues[index];
+	const uint16_t frequency = pwmFrequencies[index];
+	const uint8_t payload[] = {
+		GetLpcPinId(FirstLpcPin + index),
+		static_cast<uint8_t>(duty),
+		static_cast<uint8_t>(duty >> 8),
+		static_cast<uint8_t>(frequency),
+		static_cast<uint8_t>(frequency >> 8)
+	};
+	Send(LpcProtocol::MessageType::pwmWrite, payload, sizeof(payload));
+}
+
 static void HandlePong(const LpcProtocol::Frame& frame) noexcept
 {
 	if (frame.length != 1 || frame.payload[0] != LpcProtocol::Version)
@@ -57,6 +73,10 @@ static void HandlePong(const LpcProtocol::Frame& frame) noexcept
 			if (pinModes[i] != LpcProtocol::GpioMode::disabled)
 			{
 				SendGpioConfig(i);
+				if (pinModes[i] == LpcProtocol::GpioMode::pwm && pwmFrequencies[i] != 0)
+				{
+					SendPwm(i);
+				}
 			}
 		}
 	}
@@ -85,6 +105,8 @@ void Init() noexcept
 	{
 		pinModes[i] = LpcProtocol::GpioMode::disabled;
 		pinValues[i] = false;
+		pwmValues[i] = 0;
+		pwmFrequencies[i] = 0;
 	}
 	transmitMutex.Create("LPC");
 	online = false;
@@ -158,6 +180,14 @@ bool SetPinMode(Pin pin, PinMode mode) noexcept
 		pinModes[index] = LpcProtocol::GpioMode::output;
 		pinValues[index] = true;
 		break;
+	case OUTPUT_PWM_LOW:
+		pinModes[index] = LpcProtocol::GpioMode::pwm;
+		pinValues[index] = false;
+		break;
+	case OUTPUT_PWM_HIGH:
+		pinModes[index] = LpcProtocol::GpioMode::pwm;
+		pinValues[index] = true;
+		break;
 	default:
 		return false;
 	}
@@ -186,6 +216,23 @@ void WritePin(Pin pin, bool high) noexcept
 	{
 		const uint8_t payload[] = { GetLpcPinId(pin), static_cast<uint8_t>(high) };
 		Send(LpcProtocol::MessageType::gpioWrite, payload, sizeof(payload));
+	}
+}
+
+void WritePwm(Pin pin, float duty, uint16_t frequency) noexcept
+{
+	if (!IsLpcPin(pin))
+	{
+		return;
+	}
+
+	const size_t index = pin - FirstLpcPin;
+	const float constrainedDuty = (duty <= 0.0) ? 0.0 : (duty >= 1.0) ? 1.0 : duty;
+	pwmValues[index] = static_cast<uint16_t>(constrainedDuty * 65535.0 + 0.5);
+	pwmFrequencies[index] = frequency;
+	if (online)
+	{
+		SendPwm(index);
 	}
 }
 
