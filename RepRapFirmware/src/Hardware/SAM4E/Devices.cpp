@@ -10,6 +10,22 @@
 #include <AnalogIn.h>
 #include <AnalogOut.h>
 
+AsyncSerial lpcUart(UART1, UART1_IRQn, ID_UART1, 256, 256,
+	[](AsyncSerial*) noexcept { }, [](AsyncSerial*) noexcept { });
+
+void UART1_Handler() noexcept
+{
+	lpcUart.IrqHandler();
+}
+
+static void LpcUartInit() noexcept
+{
+	SetPinFunction(LpcUartRxPin, LpcUartPinFunction);
+	SetPinFunction(LpcUartTxPin, LpcUartPinFunction);
+	EnablePullup(LpcUartRxPin);
+	lpcUart.begin(LpcUartBaudRate);
+}
+
 SerialCDC serialUSB;
 
 void SdhcInit() noexcept
@@ -27,6 +43,7 @@ void DeviceInit() noexcept
 {
 	LegacyAnalogIn::AnalogInInit();
 	AnalogOut::Init();
+	LpcUartInit();
 	SdhcInit();
 }
 

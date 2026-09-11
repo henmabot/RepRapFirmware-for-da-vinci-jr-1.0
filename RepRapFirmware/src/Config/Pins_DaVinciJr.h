@@ -73,6 +73,11 @@ constexpr size_t NumAuxChannels = 0;
 #define SERIAL_MAIN_DEVICE serialUSB
 constexpr Pin UsbVBusPin = NoPin;
 
+constexpr uint32_t LpcUartBaudRate = 115200;
+constexpr Pin LpcUartRxPin = PortAPin(5);
+constexpr Pin LpcUartTxPin = PortAPin(6);
+constexpr GpioPinFunction LpcUartPinFunction = GpioPinFunction::C;
+
 // X, Y, Z, E1 motor wiring. The TB62269 ENABLE inputs are active high.
 constexpr Pin DriverEnablePins[NumDirectDrivers] = {
 	PortDPin(3), PortDPin(5), PortDPin(6), PortDPin(16)
