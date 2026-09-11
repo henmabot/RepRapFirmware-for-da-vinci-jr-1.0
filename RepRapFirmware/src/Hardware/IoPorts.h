@@ -33,6 +33,7 @@ public:
 
 	void AppendPinName(const StringRef& str) const noexcept;
 	bool IsValid() const noexcept { return logicalPin < NumNamedPins; }
+	bool IsAvailable() const noexcept;
 	bool GetInvert() const noexcept;
 	void SetInvert(bool pInvert) noexcept;
 	void ToggleInvert(bool pInvert) noexcept;
@@ -122,9 +123,9 @@ protected:
 
 static_assert(sizeof(IoPort) == 2, "Unexpected size for class IoPort");		// try to keep these small because triggers have arrays of them
 
-#ifndef DUET_NG
+#if !defined(DUET_NG) && !defined(DA_VINCI_JR)
 
-// For all boards except Duet 2 we just pass calls to these functions on to CoreN2G, so inline them
+// Boards without delegated GPIO just pass these calls to CoreN2G, so inline them.
 /*static*/ inline void IoPort::SetPinMode(Pin pin, PinMode mode, bool debounce) noexcept
 {
 	::SetPinMode(pin, mode, debounce);

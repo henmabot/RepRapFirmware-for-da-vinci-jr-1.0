@@ -2,6 +2,7 @@
 #define PINS_DAVINCIJR_H__
 
 #include <PinDescription.h>
+#include <LpcProtocol.h>
 
 // SAM4E mappings are cross-checked against the current da-vinci-jr-1.0-hacking
 // pinout, component, connector and board documentation. Older conflicting
@@ -45,7 +46,7 @@ constexpr uint32_t IAP_IMAGE_START = 0x20018000;
 constexpr size_t NumDirectDrivers = 4;
 constexpr size_t MaxSmartDrivers = 0;
 constexpr size_t MaxSensors = 8;
-constexpr size_t MaxHeaters = 1;          // RRF requires a heater slot even though no heater pin is mapped yet
+constexpr size_t MaxHeaters = 1;          // hotend heater is controlled by the LPC1115 thermal controller
 constexpr size_t MaxPortsPerHeater = 1;
 constexpr size_t MaxMonitorsPerHeater = 3;
 constexpr size_t MaxBedHeaters = 1;
@@ -62,7 +63,7 @@ constexpr size_t MaxExtruders = 1;
 constexpr size_t MaxAxesPlusExtruders = NumDirectDrivers;
 constexpr size_t MaxHeatersPerTool = 1;
 constexpr size_t MaxExtrudersPerTool = 1;
-constexpr size_t MaxFans = 1;
+constexpr size_t MaxFans = 2;
 constexpr unsigned int MaxTriggers = 16;
 constexpr size_t MaxSpindles = 1;
 constexpr size_t MaxLedStrips = 0;
@@ -72,6 +73,11 @@ constexpr size_t FirstAuxChannel = 1;
 constexpr size_t NumAuxChannels = 0;
 #define SERIAL_MAIN_DEVICE serialUSB
 constexpr Pin UsbVBusPin = NoPin;
+
+constexpr uint32_t LpcUartBaudRate = 115200;
+constexpr Pin LpcUartRxPin = PortAPin(5);
+constexpr Pin LpcUartTxPin = PortAPin(6);
+constexpr GpioPinFunction LpcUartPinFunction = GpioPinFunction::C;
 
 // X, Y, Z, E1 motor wiring. The TB62269 ENABLE inputs are active high.
 constexpr Pin DriverEnablePins[NumDirectDrivers] = {
@@ -120,6 +126,8 @@ constexpr GpioPinFunction HsmciPinsFunction = GpioPinFunction::C;
 #define PIN_READ(name)  { TcOutput::none, PwmOutput::none, AdcInput::none, PinCapability::read, name }
 #define PIN_WRITE(name) { TcOutput::none, PwmOutput::none, AdcInput::none, PinCapability::write, name }
 #define PIN_RW(name)    { TcOutput::none, PwmOutput::none, AdcInput::none, PinCapability::rw, name }
+#define PIN_PWM(name)   { TcOutput::none, PwmOutput::none, AdcInput::none, PinCapability::wpwm, name }
+#define PIN_AIN(name)   { TcOutput::none, PwmOutput::none, AdcInput::none, PinCapability::ainr, name }
 
 constexpr PinDescription PinTable[] =
 {
@@ -266,16 +274,43 @@ constexpr PinDescription PinTable[] =
 	PIN_NONE,		// PE03
 	PIN_READ("!button.right"),	// PE04 SW3 Right button, active low
 	PIN_NONE,		// PE05
+
+	// Verified non-NFC LPC1115-owned I/O, routed over the on-board UART.
+	PIN_READ("lpc.filament_runout"),	// PIO2_7
+	PIN_READ("lpc.rotation"),		// PIO2_1
+	PIN_READ("!lpc.filament"),		// PIO0_6, active low
+	PIN_WRITE("lpc.statusled"),		// PIO2_10
+	PIN_PWM("lpc.fan"),			// PIO2_5 hotend fan
+	PIN_PWM("lpc.reflowfan"),		// PIO1_10 reflow fan
+	PIN_AIN("lpc.ntc")			// PIO1_0 hotend NTC
 };
 
 #undef PIN_NONE
 #undef PIN_READ
 #undef PIN_WRITE
 #undef PIN_RW
+#undef PIN_PWM
+#undef PIN_AIN
 
 constexpr size_t NumNamedPins = ARRAY_SIZE(PinTable);
 constexpr size_t NumRealPins = 32 + 32 + 32 + 32 + 6;
-static_assert(NumNamedPins == NumRealPins);
+constexpr uint8_t LpcPinIds[] = {
+	LpcProtocol::Pins::FilamentRunout, LpcProtocol::Pins::Rotation, LpcProtocol::Pins::HotendFilament,
+	LpcProtocol::Pins::StatusLed, LpcProtocol::Pins::HotendFan, LpcProtocol::Pins::ReflowFan, LpcProtocol::Pins::HotendNtc
+};
+constexpr size_t NumLpcPins = ARRAY_SIZE(LpcPinIds);
+constexpr Pin FirstLpcPin = NumRealPins;
+static_assert(NumNamedPins == NumRealPins + NumLpcPins);
+
+constexpr bool IsLpcPin(Pin pin) noexcept
+{
+	return pin >= FirstLpcPin && pin < NumNamedPins;
+}
+
+constexpr uint8_t GetLpcPinId(Pin pin) noexcept
+{
+	return LpcPinIds[pin - FirstLpcPin];
+}
 
 namespace StepPins
 {
