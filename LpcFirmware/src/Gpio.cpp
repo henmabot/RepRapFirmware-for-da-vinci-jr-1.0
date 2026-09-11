@@ -25,8 +25,10 @@ static constexpr PinDefinition pins[] = {
 	{ 0x05, 0x034 }, // PIO0_5, NFC SDA
 	{ 0x30, 0x084 }, // PIO3_0, NFC TX
 	{ 0x31, 0x088 }, // PIO3_1, NFC RX
+	{ 0x09, 0x064 }, // PIO0_9, heater
 	{ 0x25, 0x044 }, // PIO2_5, hotend fan
-	{ 0x1A, 0x06C }  // PIO1_10, reflow fan
+	{ 0x1A, 0x06C }, // PIO1_10, reflow fan
+	{ 0x10, 0x078 }  // PIO1_0, hotend NTC/AD1
 };
 
 static PinState states[sizeof(pins) / sizeof(pins[0])];
@@ -92,6 +94,12 @@ bool Configure(uint8_t pin, LpcProtocol::GpioMode mode, bool initialValue) noexc
 	}
 
 	volatile uint32_t& iocon = Iocon(static_cast<unsigned int>(index));
+	if (mode == LpcProtocol::GpioMode::analog)
+	{
+		iocon = (iocon & ~0x9Fu) | 0x02u;
+		states[index].mode = mode;
+		return true;
+	}
 	iocon &= ~((0x07u) | (0x03u << 3));
 	if (mode == LpcProtocol::GpioMode::inputPullup)
 	{

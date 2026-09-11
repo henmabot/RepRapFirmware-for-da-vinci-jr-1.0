@@ -1,5 +1,6 @@
 #include "Gpio.h"
 #include "Pwm.h"
+#include "Thermal.h"
 #include "Uart.h"
 #include <LpcProtocol.h>
 
@@ -14,6 +15,7 @@ extern "C" int main() noexcept
 {
 	Uart::Init();
 	Gpio::Init();
+	Thermal::Init();
 
 	LpcProtocol::Decoder decoder{};
 	LpcProtocol::Reset(decoder);
@@ -33,6 +35,7 @@ extern "C" int main() noexcept
 			{
 			case LpcProtocol::MessageType::ping:
 				{
+					Thermal::HostHeartbeat();
 					const uint8_t payload[] = { LpcProtocol::Version };
 					Send(LpcProtocol::MessageType::pong, payload, sizeof(payload));
 				}
@@ -61,6 +64,34 @@ extern "C" int main() noexcept
 				}
 				break;
 
+			case LpcProtocol::MessageType::thermistorConfig:
+				Thermal::ConfigureThermistor(frame.payload, frame.length);
+				break;
+
+			case LpcProtocol::MessageType::heaterModelA:
+				Thermal::ConfigureModelA(frame.payload, frame.length);
+				break;
+
+			case LpcProtocol::MessageType::heaterModelB:
+				Thermal::ConfigureModelB(frame.payload, frame.length);
+				break;
+
+			case LpcProtocol::MessageType::heaterModelC:
+				Thermal::ConfigureModelC(frame.payload, frame.length);
+				break;
+
+			case LpcProtocol::MessageType::heaterConfig:
+				Thermal::ConfigureHeater(frame.payload, frame.length);
+				break;
+
+			case LpcProtocol::MessageType::heaterCommand:
+				Thermal::Command(frame.payload, frame.length);
+				break;
+
+			case LpcProtocol::MessageType::heaterFeedForward:
+				Thermal::ConfigureFeedForward(frame.payload, frame.length);
+				break;
+
 			default:
 				break;
 			}
@@ -72,6 +103,14 @@ extern "C" int main() noexcept
 		{
 			const uint8_t payload[] = { pin, static_cast<uint8_t>(value) };
 			Send(LpcProtocol::MessageType::gpioState, payload, sizeof(payload));
+		}
+
+		Thermal::Spin();
+		uint8_t thermalPayload[LpcProtocol::MaxPayload];
+		size_t thermalLength;
+		if (Thermal::TakeStatus(thermalPayload, thermalLength))
+		{
+			Send(LpcProtocol::MessageType::thermalStatus, thermalPayload, static_cast<uint8_t>(thermalLength));
 		}
 	}
 }

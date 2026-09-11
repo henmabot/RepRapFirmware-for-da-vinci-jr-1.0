@@ -21,7 +21,7 @@ lpc_vectors:
 	.word 0
 	.word 0
 	.word Default_Handler
-	.word Default_Handler
+	.word SysTick_Handler
 	.rept 32
 	.word Default_Handler
 	.endr
@@ -59,6 +59,7 @@ Reset_Handler:
 	b 5b
 .size Reset_Handler, . - Reset_Handler
 
+.extern SysTick_Handler
 .section .text.Default_Handler,"ax",%progbits
 .thumb_func
 .global Default_Handler

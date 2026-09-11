@@ -126,6 +126,7 @@ constexpr GpioPinFunction HsmciPinsFunction = GpioPinFunction::C;
 #define PIN_WRITE(name) { TcOutput::none, PwmOutput::none, AdcInput::none, PinCapability::write, name }
 #define PIN_RW(name)    { TcOutput::none, PwmOutput::none, AdcInput::none, PinCapability::rw, name }
 #define PIN_PWM(name)   { TcOutput::none, PwmOutput::none, AdcInput::none, PinCapability::wpwm, name }
+#define PIN_AIN(name)   { TcOutput::none, PwmOutput::none, AdcInput::none, PinCapability::ainr, name }
 
 constexpr PinDescription PinTable[] =
 {
@@ -283,7 +284,8 @@ constexpr PinDescription PinTable[] =
 	PIN_RW("lpc.nfc.tx"),			// PIO3_0
 	PIN_RW("lpc.nfc.rx"),			// PIO3_1
 	PIN_PWM("lpc.fan"),			// PIO2_5 hotend fan
-	PIN_PWM("lpc.reflowfan")		// PIO1_10 reflow fan
+	PIN_PWM("lpc.reflowfan"),		// PIO1_10 reflow fan
+	PIN_AIN("lpc.ntc")			// PIO1_0 hotend NTC
 };
 
 #undef PIN_NONE
@@ -291,10 +293,11 @@ constexpr PinDescription PinTable[] =
 #undef PIN_WRITE
 #undef PIN_RW
 #undef PIN_PWM
+#undef PIN_AIN
 
 constexpr size_t NumNamedPins = ARRAY_SIZE(PinTable);
 constexpr size_t NumRealPins = 32 + 32 + 32 + 32 + 6;
-constexpr uint8_t LpcPinIds[] = { 0x27, 0x21, 0x06, 0x2A, 0x04, 0x05, 0x30, 0x31, 0x25, 0x1A };
+constexpr uint8_t LpcPinIds[] = { 0x27, 0x21, 0x06, 0x2A, 0x04, 0x05, 0x30, 0x31, 0x25, 0x1A, 0x10 };
 constexpr size_t NumLpcPins = ARRAY_SIZE(LpcPinIds);
 constexpr Pin FirstLpcPin = NumRealPins;
 static_assert(NumNamedPins == NumRealPins + NumLpcPins);
