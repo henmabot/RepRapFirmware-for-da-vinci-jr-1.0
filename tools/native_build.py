@@ -324,6 +324,10 @@ def crc_appender() -> Path:
             "Darwin",
             "x86_64",
         ): "RepRapFirmware/Tools/CrcAppender/macos-x86_64/CrcAppender",
+        (
+            "Darwin",
+            "arm64",
+        ): "RepRapFirmware/Tools/CrcAppender/macos-arm64/CrcAppender",
     }
     key = (platform.system(), platform.machine().lower())
     try:
