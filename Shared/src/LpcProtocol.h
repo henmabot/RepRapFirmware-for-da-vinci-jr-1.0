@@ -18,10 +18,6 @@ namespace Pins
 	constexpr uint8_t Rotation = 0x21;
 	constexpr uint8_t HotendFilament = 0x06;
 	constexpr uint8_t StatusLed = 0x2A;
-	constexpr uint8_t NfcScl = 0x04;
-	constexpr uint8_t NfcSda = 0x05;
-	constexpr uint8_t NfcTx = 0x30;
-	constexpr uint8_t NfcRx = 0x31;
 	constexpr uint8_t Heater = 0x09;
 	constexpr uint8_t HotendFan = 0x25;
 	constexpr uint8_t ReflowFan = 0x1A;

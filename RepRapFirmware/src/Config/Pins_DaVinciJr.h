@@ -46,7 +46,7 @@ constexpr uint32_t IAP_IMAGE_START = 0x20018000;
 constexpr size_t NumDirectDrivers = 4;
 constexpr size_t MaxSmartDrivers = 0;
 constexpr size_t MaxSensors = 8;
-constexpr size_t MaxHeaters = 1;          // RRF requires a heater slot even though no heater pin is mapped yet
+constexpr size_t MaxHeaters = 1;          // hotend heater is controlled by the LPC1115 thermal controller
 constexpr size_t MaxPortsPerHeater = 1;
 constexpr size_t MaxMonitorsPerHeater = 3;
 constexpr size_t MaxBedHeaters = 1;
@@ -275,15 +275,11 @@ constexpr PinDescription PinTable[] =
 	PIN_READ("!button.right"),	// PE04 SW3 Right button, active low
 	PIN_NONE,		// PE05
 
-	// LPC1115-owned I/O. These are logical pins routed over the on-board UART.
+	// Verified non-NFC LPC1115-owned I/O, routed over the on-board UART.
 	PIN_READ("lpc.filament_runout"),	// PIO2_7
 	PIN_READ("lpc.rotation"),		// PIO2_1
 	PIN_READ("!lpc.filament"),		// PIO0_6, active low
 	PIN_WRITE("lpc.statusled"),		// PIO2_10
-	PIN_RW("lpc.nfc.scl"),			// PIO0_4
-	PIN_RW("lpc.nfc.sda"),			// PIO0_5
-	PIN_RW("lpc.nfc.tx"),			// PIO3_0
-	PIN_RW("lpc.nfc.rx"),			// PIO3_1
 	PIN_PWM("lpc.fan"),			// PIO2_5 hotend fan
 	PIN_PWM("lpc.reflowfan"),		// PIO1_10 reflow fan
 	PIN_AIN("lpc.ntc")			// PIO1_0 hotend NTC
@@ -300,8 +296,7 @@ constexpr size_t NumNamedPins = ARRAY_SIZE(PinTable);
 constexpr size_t NumRealPins = 32 + 32 + 32 + 32 + 6;
 constexpr uint8_t LpcPinIds[] = {
 	LpcProtocol::Pins::FilamentRunout, LpcProtocol::Pins::Rotation, LpcProtocol::Pins::HotendFilament,
-	LpcProtocol::Pins::StatusLed, LpcProtocol::Pins::NfcScl, LpcProtocol::Pins::NfcSda, LpcProtocol::Pins::NfcTx,
-	LpcProtocol::Pins::NfcRx, LpcProtocol::Pins::HotendFan, LpcProtocol::Pins::ReflowFan, LpcProtocol::Pins::HotendNtc
+	LpcProtocol::Pins::StatusLed, LpcProtocol::Pins::HotendFan, LpcProtocol::Pins::ReflowFan, LpcProtocol::Pins::HotendNtc
 };
 constexpr size_t NumLpcPins = ARRAY_SIZE(LpcPinIds);
 constexpr Pin FirstLpcPin = NumRealPins;

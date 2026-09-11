@@ -18,15 +18,12 @@ struct PinState
 	bool lastValue;
 };
 
+// Verified non-NFC LPC1115 pins from hardware/pinouts/lpc1115-pinout.md.
 static constexpr PinDefinition pins[] = {
 	{ LpcProtocol::Pins::FilamentRunout, 0x020, 0, false }, // PIO2_7
 	{ LpcProtocol::Pins::Rotation, 0x028, 0, false },        // PIO2_1
 	{ LpcProtocol::Pins::HotendFilament, 0x04C, 0, false }, // PIO0_6
 	{ LpcProtocol::Pins::StatusLed, 0x058, 0, false },       // PIO2_10
-	{ LpcProtocol::Pins::NfcScl, 0x030, 0, false },          // PIO0_4
-	{ LpcProtocol::Pins::NfcSda, 0x034, 0, false },          // PIO0_5
-	{ LpcProtocol::Pins::NfcTx, 0x084, 0, false },           // PIO3_0
-	{ LpcProtocol::Pins::NfcRx, 0x088, 0, false },           // PIO3_1
 	{ LpcProtocol::Pins::Heater, 0x064, 0, false },          // PIO0_9
 	{ LpcProtocol::Pins::HotendFan, 0x044, 0, false },       // PIO2_5
 	{ LpcProtocol::Pins::ReflowFan, 0x06C, 0, true },        // PIO1_10/AD6
