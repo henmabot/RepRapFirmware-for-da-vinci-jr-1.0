@@ -150,6 +150,7 @@ static void ReplayConfiguration() noexcept
 
 static void SetOffline() noexcept
 {
+	TaskCriticalSectionLocker lock;
 	online = false;
 	for (bool& received : pinStateReceived)
 	{
@@ -166,16 +167,22 @@ static void HandlePong(const LpcProtocol::Frame& frame) noexcept
 		return;
 	}
 
-	const bool reconnected = !online || frame.payload[1] != 0;
+	const bool reconnected = !IsOnline() || frame.payload[1] != 0;
 	if (reconnected)
 	{
 		SetOffline();
 	}
-	online = true;
-	lastPongReceived = millis();
+	{
+		TaskCriticalSectionLocker lock;
+		online = true;
+		lastPongReceived = millis();
+		if (reconnected)
+		{
+			++connectionGeneration;
+		}
+	}
 	if (reconnected)
 	{
-		++connectionGeneration;
 		ReplayConfiguration();
 	}
 }
@@ -274,15 +281,17 @@ void Spin() noexcept
 
 bool IsOnline() noexcept
 {
+	TaskCriticalSectionLocker lock;
 	return online;
 }
 uint32_t GetConnectionGeneration() noexcept
 {
+	TaskCriticalSectionLocker lock;
 	return connectionGeneration;
 }
 bool IsPinAvailable(Pin pin) noexcept
 {
-	if (!online || !IsLpcPin(pin))
+	if (!IsOnline() || !IsLpcPin(pin))
 	{
 		return false;
 	}
@@ -351,7 +360,7 @@ bool SetPinMode(Pin pin, PinMode mode) noexcept
 		return false;
 	}
 
-	if (online)
+	if (IsOnline())
 	{
 		SendGpioConfig(index);
 	}
@@ -377,7 +386,7 @@ void WritePin(Pin pin, bool high) noexcept
 	}
 	const size_t index = pin - FirstLpcPin;
 	pinValues[index] = high;
-	if (online)
+	if (IsOnline())
 	{
 		const uint8_t payload[] = { GetLpcPinId(pin), static_cast<uint8_t>(high) };
 		Send(LpcProtocol::MessageType::gpioWrite, payload, sizeof(payload));
@@ -395,7 +404,7 @@ void WritePwm(Pin pin, float duty, uint16_t frequency) noexcept
 	const float constrainedDuty = (duty <= 0.0f) ? 0.0f : (duty >= 1.0f) ? 1.0f : duty;
 	pwmValues[index] = static_cast<uint16_t>(constrainedDuty * 65535.0f + 0.5f);
 	pwmFrequencies[index] = frequency;
-	if (online)
+	if (IsOnline())
 	{
 		SendPwm(index);
 	}
@@ -410,7 +419,7 @@ void ConfigureThermistor(unsigned int sensorNumber, float r25, float beta, float
 	PutFloat(thermistorPayload + 12, seriesResistance);
 	thermistorSensorNumber = static_cast<int>(sensorNumber);
 	thermistorConfigured = true;
-	if (online)
+	if (IsOnline())
 	{
 		Send(LpcProtocol::MessageType::thermistorConfig, thermistorPayload, sizeof(thermistorPayload));
 	}
@@ -448,7 +457,7 @@ void ConfigureHeaterModel(const FopDt& model) noexcept
 	PutFloat(modelCPayload, pid.tD);
 	modelCPayload[4] = static_cast<uint8_t>((model.UsePid() ? 0x01u : 0u) | (model.IsInverted() ? 0x02u : 0u) | (model.ArePidParametersOverridden() ? 0x04u : 0u));
 	modelConfigured = true;
-	if (online)
+	if (IsOnline())
 	{
 		Send(LpcProtocol::MessageType::heaterModelA, modelAPayload, sizeof(modelAPayload));
 		Send(LpcProtocol::MessageType::heaterModelB, modelBPayload, sizeof(modelBPayload));
@@ -466,7 +475,7 @@ void ConfigureHeater(uint16_t frequency, float upperLimit, float lowerLimit, flo
 	PutU16(heaterPayload + 8, ToUnsignedTenths(maxFaultTime));
 	heaterPayload[10] = maxBadReadings;
 	heaterConfigured = true;
-	if (online)
+	if (IsOnline())
 	{
 		Send(LpcProtocol::MessageType::heaterConfig, heaterPayload, sizeof(heaterPayload));
 	}
@@ -480,7 +489,7 @@ void CommandHeater(LpcProtocol::HeaterCommand command, float targetTemperature) 
 		static_cast<uint8_t>(target),
 		static_cast<uint8_t>(static_cast<uint16_t>(target) >> 8)
 	};
-	if (online)
+	if (command == LpcProtocol::HeaterCommand::off || IsOnline())
 	{
 		Send(LpcProtocol::MessageType::heaterCommand, payload, sizeof(payload));
 	}
@@ -493,7 +502,7 @@ void ConfigureHeaterFeedForward(float fanPwm, float extrusionPwmBoost, float ext
 	PutFloat(feedForwardPayload + 4, extrusionPwmBoost);
 	PutFloat(feedForwardPayload + 8, extrusionTemperatureBoost);
 	feedForwardConfigured = true;
-	if (online)
+	if (IsOnline())
 	{
 		Send(LpcProtocol::MessageType::heaterFeedForward, feedForwardPayload, sizeof(feedForwardPayload));
 	}
