@@ -9,6 +9,9 @@
 #include <Platform/RepRap.h>
 #include <Platform/Platform.h>
 #include <GCodes/GCodeBuffer/GCodeBuffer.h>
+#if defined(DA_VINCI_JR)
+# include <Hardware/SAM4E/LpcInterface.h>
+#endif
 
 #if SUPPORT_REMOTE_COMMANDS
 # include <CanMessageGenericParser.h>
@@ -52,32 +55,39 @@ bool SimpleFilamentMonitor::Interrupt() noexcept
 }
 
 // Call the following regularly to keep the status up to date
-void SimpleFilamentMonitor::Poll() noexcept
+bool SimpleFilamentMonitor::Poll() noexcept
 {
+#if defined(DA_VINCI_JR)
+	if (IsLpcPin(GetPort().GetPin()) && !LpcInterface::IsOnline())
+	{
+		return false;
+	}
+#endif
 	const bool b = GetPort().ReadDigital();
 	filamentPresent = (highWhenNoFilament) ? !b : b;
+	return true;
 }
 
 // Call the following at intervals to check the status. This is only called when extrusion is in progress or imminent.
 // 'filamentConsumed' is the net amount of extrusion since the last call to this function.
 FilamentSensorStatus SimpleFilamentMonitor::Check(bool isPrinting, bool fromIsr, uint32_t isrMillis, float filamentConsumed) noexcept
 {
-	Poll();
-	return (GetEnableMode() == 0 || filamentPresent) ? FilamentSensorStatus::ok : FilamentSensorStatus::noFilament;
+	return !Poll() ? FilamentSensorStatus::noDataReceived
+		: (GetEnableMode() == 0 || filamentPresent) ? FilamentSensorStatus::ok : FilamentSensorStatus::noFilament;
 }
 
 // Clear the measurement state - called when we are not printing a file. Return the present/not present status if available.
 FilamentSensorStatus SimpleFilamentMonitor::Clear() noexcept
 {
-	Poll();
-	return (GetEnableMode() == 0 || filamentPresent) ? FilamentSensorStatus::ok : FilamentSensorStatus::noFilament;
+	return !Poll() ? FilamentSensorStatus::noDataReceived
+		: (GetEnableMode() == 0 || filamentPresent) ? FilamentSensorStatus::ok : FilamentSensorStatus::noFilament;
 }
 
 // Print diagnostic info for this sensor
 void SimpleFilamentMonitor::Diagnostics(const StringRef& reply) noexcept
 {
-	Poll();
-	reply.lcatf("Driver %u: %s", GetDriver(), (filamentPresent) ? "ok" : "no filament");
+	const bool available = Poll();
+	reply.lcatf("Driver %u: %s", GetDriver(), !available ? "no data" : (filamentPresent) ? "ok" : "no filament");
 }
 
 #if SUPPORT_REMOTE_COMMANDS
