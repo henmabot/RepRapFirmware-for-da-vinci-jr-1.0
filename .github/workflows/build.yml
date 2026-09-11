@@ -29,7 +29,7 @@ jobs:
       - name: Build firmware
         run: just build
 
-      - name: Upload firmware
+      - name: Upload SAM4E firmware
         uses: actions/upload-artifact@v4
         with:
           name: reprapfirmware-da-vinci-jr-1.0
@@ -38,3 +38,12 @@ jobs:
             build/RepRapFirmware/DaVinciJrFirmware.elf
             build/RepRapFirmware/DaVinciJrFirmware.map
             sys/
+
+      - name: Upload LPC1115 firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: lpc1115-firmware-da-vinci-jr-1.0
+          path: |
+            build/LpcFirmware/Lpc1115Firmware.bin
+            build/LpcFirmware/Lpc1115Firmware.elf
+            build/LpcFirmware/Lpc1115Firmware.map
