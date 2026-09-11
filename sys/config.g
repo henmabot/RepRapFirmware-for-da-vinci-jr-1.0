@@ -1,5 +1,4 @@
-; Da Vinci Jr 1.0 motion bring-up configuration
-; This file configures only hardware controlled by the SAM4E.
+; Da Vinci Jr 1.0 configuration
 
 M550 P"Da Vinci Jr 1.0"
 
@@ -32,3 +31,19 @@ M564 H1 S1
 M574 X1 S1 P"xstop"
 M574 Y2 S1 P"ystop"
 M574 Z1 S1 P"zstop"
+
+; LPC1115 peripherals. Only pins marked Verified in the hardware pinout are used here.
+; PIO1_0 = hotend NTC, PIO0_9 = heater, PIO2_5 = hotend fan, PIO1_10 = reflow fan.
+;
+; The stock-conversion firmware identifies the hotend sensor as a 100K
+; Semitec 104GT-2/104NT-4 with a 4.7K pull-up (beta 4267).
+M308 S0 P"lpc.ntc" Y"thermistor" T100000 B4267 C0 R4700
+M950 H0 C"lpc.heater" T0 Q250
+M143 H0 S265
+
+M950 F0 C"lpc.fan" Q250
+M950 F1 C"lpc.reflowfan" Q250
+
+; Declaring heater 0 as the tool heater enables RRF's default hotend model.
+; Fan behavior remains unassigned until the stock fan roles are verified.
+M563 P0 D0 H0 F-1
