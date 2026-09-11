@@ -330,6 +330,14 @@ bool IoPort::SetMode(PinAccess access) noexcept
 
 	if (logicalPinModes[logicalPin] != (int8_t)desiredMode)
 	{
+		#if defined(DA_VINCI_JR)
+		if (IsLpcPin(GetPinNoCheck()) && access == PinAccess::readAnalog)
+		{
+			IoPort::SetPinMode(GetPinNoCheck(), AIN);
+			logicalPinModes[logicalPin] = (int8_t)desiredMode;
+			return true;
+		}
+		#endif
 		const AnalogChannelNumber chan = PinToAdcChannel(GetPinNoCheck());
 		if (chan != NO_ADC)
 		{
@@ -516,7 +524,13 @@ bool IoPort::ReadDigital() const noexcept
 
 uint16_t IoPort::ReadAnalog() const noexcept
 {
+	#if defined(DA_VINCI_JR)
+	const uint16_t val = IsValid() && IsLpcPin(GetPinNoCheck())
+		? static_cast<uint16_t>(LpcInterface::ReadAnalog(GetPinNoCheck()) << (AdcBits - 10))
+		: AnalogInReadChannel(GetAnalogChannel());
+	#else
 	const uint16_t val = AnalogInReadChannel(GetAnalogChannel());
+	#endif
 	return (totalInvert) ? ((1u << AdcBits) - 1) - val : val;
 }
 

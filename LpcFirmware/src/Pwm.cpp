@@ -22,6 +22,7 @@ struct Channel
 };
 
 static constexpr Channel channels[] = {
+	{ 0x09, 0x064, 0x4000C000u, 0x0000FFFFu, 7, 1, 2, false }, // PIO0_9/CT16B0_MAT1 heater
 	{ 0x25, 0x044, Ct32b0Base, 0xFFFFFFFFu, 9, 0, 1, false }, // PIO2_5/CT32B0_MAT0 hotend fan
 	{ 0x1A, 0x06C, Ct16b1Base, 0x0000FFFFu, 8, 1, 2, true }   // PIO1_10/CT16B1_MAT1 reflow fan
 };
@@ -96,7 +97,7 @@ bool Set(uint8_t pin, uint16_t duty, uint16_t frequency) noexcept
 	TimerRegister(channel->timerBase, 0x018 + 4u * channel->matchChannel) = match;
 	TimerRegister(channel->timerBase, 0x024) = period; // MR3 sets the PWM cycle
 	TimerRegister(channel->timerBase, 0x014) = 1u << 10; // reset on MR3
-	TimerRegister(channel->timerBase, 0x074) = 1u << channel->matchChannel;
+	TimerRegister(channel->timerBase, 0x074) = (1u << 3) | (1u << channel->matchChannel);
 	TimerRegister(channel->timerBase, 0x004) = 0x01u;
 	return true;
 }

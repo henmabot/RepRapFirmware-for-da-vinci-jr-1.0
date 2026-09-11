@@ -7,6 +7,9 @@
  */
 
 #include "Thermistor.h"
+#if defined(DA_VINCI_JR)
+# include <Hardware/SAM4E/LpcInterface.h>
+#endif
 #include <Platform/Platform.h>
 #include <Platform/RepRap.h>
 #include <GCodes/GCodeBuffer/GCodeBuffer.h>
@@ -269,6 +272,12 @@ GCodeResult Thermistor::Configure(GCodeBuffer& gb, const StringRef& reply, bool&
 	}
 
 	ConfigureCommonParameters(gb, changed);
+#if defined(DA_VINCI_JR)
+	if (port.IsValid() && IsLpcPin(port.GetPin()) && GetLpcPinId(port.GetPin()) == 0x10)
+	{
+		LpcInterface::ConfigureThermistor(r25, beta, shC, seriesR);
+	}
+#endif
 
 	if (!changed)
 	{

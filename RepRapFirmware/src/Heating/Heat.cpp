@@ -20,6 +20,9 @@ Licence: GPL
 
 #include "Heat.h"
 #include "LocalHeater.h"
+#if defined(DA_VINCI_JR)
+# include "LpcHeater.h"
+#endif
 #include "HeaterMonitor.h"
 #include <Platform/Platform.h>
 #include <Platform/RepRap.h>
@@ -598,7 +601,11 @@ GCodeResult Heat::ConfigureHeater(GCodeBuffer& gb, const StringRef& reply) THROW
 
 		const PwmFrequency freq = (gb.Seen('Q')) ? min<PwmFrequency>(gb.GetPwmFrequency(), MaxHeaterPwmFrequency) : DefaultHeaterPwmFreq;
 
-#if SUPPORT_CAN_EXPANSION
+#if defined(DA_VINCI_JR)
+		Heater * const newHeater = StringEqualsIgnoreCase(pinName.c_str(), "lpc.heater")
+			? static_cast<Heater *>(new LpcHeater(heater))
+			: static_cast<Heater *>(new LocalHeater(heater));
+#elif SUPPORT_CAN_EXPANSION
 		Heater * const newHeater = (board != CanInterface::GetCanAddress()) ? (Heater *)new RemoteHeater(heater, board) : new LocalHeater(heater);
 #else
 		Heater * const newHeater = new LocalHeater(heater);

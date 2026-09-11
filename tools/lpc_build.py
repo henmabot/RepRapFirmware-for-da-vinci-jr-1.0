@@ -34,6 +34,7 @@ SOURCES = (
     ROOT / "LpcFirmware" / "src" / "Uart.cpp",
     ROOT / "LpcFirmware" / "src" / "Gpio.cpp",
     ROOT / "LpcFirmware" / "src" / "Pwm.cpp",
+    ROOT / "LpcFirmware" / "src" / "Thermal.cpp",
     ROOT / "LpcFirmware" / "src" / "main.cpp",
     ROOT / "Shared" / "src" / "LpcProtocol.cpp",
 )
@@ -103,6 +104,7 @@ def build() -> None:
             f"-Wl,-Map,{map_file}",
             f"-T{linker_script}",
             *map(str, objects),
+            "-lm",
             "-lc",
             "-lgcc",
             "-o",
