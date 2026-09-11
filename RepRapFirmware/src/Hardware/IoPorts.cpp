@@ -17,6 +17,9 @@
 #include <AnalogOut.h>
 #include <Interrupts.h>
 #include <AnalogIn.h>
+#if defined(DA_VINCI_JR)
+# include <Hardware/SAM4E/LpcInterface.h>
+#endif
 
 #if SAME5x
 constexpr unsigned int AdcBits = AnalogIn::AdcBits;
@@ -557,6 +560,47 @@ uint16_t IoPort::ReadAnalog() const noexcept
 	return true;
 #endif
 }
+
+#if defined(DA_VINCI_JR)
+
+/*static*/ void IoPort::SetPinMode(Pin pin, PinMode mode, bool debounce) noexcept
+{
+	if (IsLpcPin(pin))
+	{
+		(void)LpcInterface::SetPinMode(pin, mode);
+	}
+	else
+	{
+		::SetPinMode(pin, mode, debounce);
+	}
+}
+
+/*static*/ bool IoPort::ReadPin(Pin pin) noexcept
+{
+	return IsLpcPin(pin) ? LpcInterface::ReadPin(pin) : digitalRead(pin);
+}
+
+/*static*/ void IoPort::WriteDigital(Pin pin, bool high) noexcept
+{
+	if (IsLpcPin(pin))
+	{
+		LpcInterface::WritePin(pin, high);
+	}
+	else
+	{
+		digitalWrite(pin, high);
+	}
+}
+
+/*static*/ void IoPort::WriteAnalog(Pin pin, float pwm, uint16_t freq) noexcept
+{
+	if (!IsLpcPin(pin))
+	{
+		AnalogOut::Write(pin, pwm, freq);
+	}
+}
+
+#endif
 
 // Low level pin access methods
 

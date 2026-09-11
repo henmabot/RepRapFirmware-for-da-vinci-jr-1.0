@@ -271,6 +271,16 @@ constexpr PinDescription PinTable[] =
 	PIN_NONE,		// PE03
 	PIN_READ("!button.right"),	// PE04 SW3 Right button, active low
 	PIN_NONE,		// PE05
+
+	// LPC1115-owned I/O. These are logical pins routed over the on-board UART.
+	PIN_READ("lpc.filament_runout"),	// PIO2_7
+	PIN_READ("lpc.rotation"),		// PIO2_1
+	PIN_READ("!lpc.filament"),		// PIO0_6, active low
+	PIN_WRITE("lpc.statusled"),		// PIO2_10
+	PIN_RW("lpc.nfc.scl"),			// PIO0_4
+	PIN_RW("lpc.nfc.sda"),			// PIO0_5
+	PIN_RW("lpc.nfc.tx"),			// PIO3_0
+	PIN_RW("lpc.nfc.rx")			// PIO3_1
 };
 
 #undef PIN_NONE
@@ -280,7 +290,20 @@ constexpr PinDescription PinTable[] =
 
 constexpr size_t NumNamedPins = ARRAY_SIZE(PinTable);
 constexpr size_t NumRealPins = 32 + 32 + 32 + 32 + 6;
-static_assert(NumNamedPins == NumRealPins);
+constexpr uint8_t LpcPinIds[] = { 0x27, 0x21, 0x06, 0x2A, 0x04, 0x05, 0x30, 0x31 };
+constexpr size_t NumLpcPins = ARRAY_SIZE(LpcPinIds);
+constexpr Pin FirstLpcPin = NumRealPins;
+static_assert(NumNamedPins == NumRealPins + NumLpcPins);
+
+constexpr bool IsLpcPin(Pin pin) noexcept
+{
+	return pin >= FirstLpcPin && pin < NumNamedPins;
+}
+
+constexpr uint8_t GetLpcPinId(Pin pin) noexcept
+{
+	return LpcPinIds[pin - FirstLpcPin];
+}
 
 namespace StepPins
 {
