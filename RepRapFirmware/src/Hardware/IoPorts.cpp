@@ -17,6 +17,9 @@
 #include <AnalogOut.h>
 #include <Interrupts.h>
 #include <AnalogIn.h>
+#if defined(DA_VINCI_JR)
+# include <Hardware/SAM4E/LpcInterface.h>
+#endif
 
 #if SAME5x
 constexpr unsigned int AdcBits = AnalogIn::AdcBits;
@@ -164,6 +167,15 @@ void IoPort::Release() noexcept
 	}
 	logicalPin = NoLogicalPin;
 	hardwareInvert = totalInvert = false;
+}
+
+bool IoPort::IsAvailable() const noexcept
+{
+#if defined(DA_VINCI_JR)
+	return IsValid() && (!IsLpcPin(GetPinNoCheck()) || LpcInterface::IsPinAvailable(GetPinNoCheck()));
+#else
+	return IsValid();
+#endif
 }
 
 // Attach an interrupt to the pin. Not permitted if we allocated the pin in shared input mode.
@@ -327,6 +339,17 @@ bool IoPort::SetMode(PinAccess access) noexcept
 
 	if (logicalPinModes[logicalPin] != (int8_t)desiredMode)
 	{
+#if defined(DA_VINCI_JR)
+		if (IsLpcPin(GetPinNoCheck()))
+		{
+			if (!LpcInterface::SetPinMode(GetPinNoCheck(), desiredMode))
+			{
+				return false;
+			}
+			logicalPinModes[logicalPin] = (int8_t)desiredMode;
+			return true;
+		}
+#endif
 		const AnalogChannelNumber chan = PinToAdcChannel(GetPinNoCheck());
 		if (chan != NO_ADC)
 		{
@@ -513,7 +536,13 @@ bool IoPort::ReadDigital() const noexcept
 
 uint16_t IoPort::ReadAnalog() const noexcept
 {
+#if defined(DA_VINCI_JR)
+	const uint16_t val = IsValid() && IsLpcPin(GetPinNoCheck())
+		? static_cast<uint16_t>(LpcInterface::ReadAnalog(GetPinNoCheck()) << (AdcBits - 10))
+		: AnalogInReadChannel(GetAnalogChannel());
+#else
 	const uint16_t val = AnalogInReadChannel(GetAnalogChannel());
+#endif
 	return (totalInvert) ? ((1u << AdcBits) - 1) - val : val;
 }
 
@@ -557,6 +586,51 @@ uint16_t IoPort::ReadAnalog() const noexcept
 	return true;
 #endif
 }
+
+#if defined(DA_VINCI_JR)
+
+/*static*/ void IoPort::SetPinMode(Pin pin, PinMode mode, bool debounce) noexcept
+{
+	if (IsLpcPin(pin))
+	{
+		(void)LpcInterface::SetPinMode(pin, mode);
+	}
+	else
+	{
+		::SetPinMode(pin, mode, debounce);
+	}
+}
+
+/*static*/ bool IoPort::ReadPin(Pin pin) noexcept
+{
+	return IsLpcPin(pin) ? LpcInterface::ReadPin(pin) : digitalRead(pin);
+}
+
+/*static*/ void IoPort::WriteDigital(Pin pin, bool high) noexcept
+{
+	if (IsLpcPin(pin))
+	{
+		LpcInterface::WritePin(pin, high);
+	}
+	else
+	{
+		digitalWrite(pin, high);
+	}
+}
+
+/*static*/ void IoPort::WriteAnalog(Pin pin, float pwm, uint16_t freq) noexcept
+{
+	if (IsLpcPin(pin))
+	{
+		LpcInterface::WritePwm(pin, pwm, freq);
+	}
+	else
+	{
+		AnalogOut::Write(pin, pwm, freq);
+	}
+}
+
+#endif
 
 // Low level pin access methods
 

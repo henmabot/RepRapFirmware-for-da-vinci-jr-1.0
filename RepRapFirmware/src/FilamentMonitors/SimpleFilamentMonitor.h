@@ -33,7 +33,7 @@ protected:
 	const char *_ecv_array GetTypeText() const noexcept override { return "simple"; }
 
 private:
-	void Poll() noexcept;
+	bool Poll() noexcept;
 
 	bool highWhenNoFilament;
 	bool filamentPresent;

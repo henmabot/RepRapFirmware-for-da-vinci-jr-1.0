@@ -98,7 +98,11 @@ public:
 		{ return model.IsEnabled(); }
 
 	void SetM301PidParameters(const M301PidParameters& params) noexcept
-		{ model.SetM301PidParameters(params); }
+	{
+		model.SetM301PidParameters(params);
+		String<1> dummy;
+		(void)UpdateModel(dummy.GetRef());
+	}
 
 	void ClearModelAndMonitors() noexcept;
 	void SetAsToolHeater() noexcept;
