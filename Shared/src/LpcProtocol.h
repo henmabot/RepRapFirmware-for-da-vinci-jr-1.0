@@ -15,7 +15,18 @@ constexpr size_t MaxEncodedFrame = MaxPayload + 4;
 enum class MessageType : uint8_t
 {
 	ping = 1,
-	pong = 2
+	pong = 2,
+	gpioConfig = 3,
+	gpioWrite = 4,
+	gpioState = 5
+};
+
+enum class GpioMode : uint8_t
+{
+	disabled = 0,
+	input = 1,
+	inputPullup = 2,
+	output = 3
 };
 
 struct Frame

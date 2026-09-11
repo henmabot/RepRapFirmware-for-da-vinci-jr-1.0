@@ -32,6 +32,7 @@ INCLUDES = (
 SOURCES = (
     ROOT / "LpcFirmware" / "src" / "startup.S",
     ROOT / "LpcFirmware" / "src" / "Uart.cpp",
+    ROOT / "LpcFirmware" / "src" / "Gpio.cpp",
     ROOT / "LpcFirmware" / "src" / "main.cpp",
     ROOT / "Shared" / "src" / "LpcProtocol.cpp",
 )
