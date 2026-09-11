@@ -1,4 +1,5 @@
 #include "Gpio.h"
+#include "Pwm.h"
 #include "Uart.h"
 #include <LpcProtocol.h>
 
@@ -48,6 +49,15 @@ extern "C" int main() noexcept
 				if (frame.length == 2)
 				{
 					Gpio::Write(frame.payload[0], frame.payload[1] != 0);
+				}
+				break;
+
+			case LpcProtocol::MessageType::pwmWrite:
+				if (frame.length == 5)
+				{
+					const uint16_t duty = static_cast<uint16_t>(frame.payload[1] | (static_cast<uint16_t>(frame.payload[2]) << 8));
+					const uint16_t frequency = static_cast<uint16_t>(frame.payload[3] | (static_cast<uint16_t>(frame.payload[4]) << 8));
+					Pwm::Set(frame.payload[0], duty, frequency);
 				}
 				break;
 

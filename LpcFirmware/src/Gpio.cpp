@@ -24,7 +24,9 @@ static constexpr PinDefinition pins[] = {
 	{ 0x04, 0x030 }, // PIO0_4, NFC SCL
 	{ 0x05, 0x034 }, // PIO0_5, NFC SDA
 	{ 0x30, 0x084 }, // PIO3_0, NFC TX
-	{ 0x31, 0x088 }  // PIO3_1, NFC RX
+	{ 0x31, 0x088 }, // PIO3_1, NFC RX
+	{ 0x25, 0x044 }, // PIO2_5, hotend fan
+	{ 0x1A, 0x06C }  // PIO1_10, reflow fan
 };
 
 static PinState states[sizeof(pins) / sizeof(pins[0])];
@@ -97,7 +99,7 @@ bool Configure(uint8_t pin, LpcProtocol::GpioMode mode, bool initialValue) noexc
 	}
 
 	const uint32_t mask = 1u << (pin & 0x0Fu);
-	if (mode == LpcProtocol::GpioMode::output)
+	if (mode == LpcProtocol::GpioMode::output || mode == LpcProtocol::GpioMode::pwm)
 	{
 		WriteRaw(pin, initialValue);
 		Direction(pin) |= mask;
