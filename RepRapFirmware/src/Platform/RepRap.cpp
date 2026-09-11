@@ -22,6 +22,9 @@
 #include <Fans/FansManager.h>
 #include <Hardware/SoftwareReset.h>
 #include <Hardware/ExceptionHandlers.h>
+#if defined(DA_VINCI_JR)
+# include <Hardware/SAM4E/LpcInterface.h>
+#endif
 #include <Accelerometers/Accelerometers.h>
 #include <CoreNotifyIndices.h>
 #include <Movement/StepperDrivers/SmartDrivers.h>
@@ -488,6 +491,9 @@ void RepRap::Init() noexcept
 #endif
 
 	platform->Init();
+#if defined(DA_VINCI_JR)
+	LpcInterface::Init();
+#endif
 	network->Init();
 	SetName(DEFAULT_MACHINE_NAME);		// Network must be initialised before calling this because this calls SetHostName
 	gCodes->Init();						// must be called before Move::Init
@@ -703,6 +709,9 @@ void RepRap::Spin() noexcept
 	ticksInSpinState = 0;
 	spinningModule = Module::Platform;
 	platform->Spin();
+#if defined(DA_VINCI_JR)
+	LpcInterface::Spin();
+#endif
 
 	ticksInSpinState = 0;
 	spinningModule = Module::Gcodes;
