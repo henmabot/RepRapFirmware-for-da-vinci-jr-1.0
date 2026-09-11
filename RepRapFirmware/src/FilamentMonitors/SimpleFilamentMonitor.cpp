@@ -9,10 +9,6 @@
 #include <Platform/RepRap.h>
 #include <Platform/Platform.h>
 #include <GCodes/GCodeBuffer/GCodeBuffer.h>
-#if defined(DA_VINCI_JR)
-# include <Hardware/SAM4E/LpcInterface.h>
-#endif
-
 #if SUPPORT_REMOTE_COMMANDS
 # include <CanMessageGenericParser.h>
 #endif
@@ -57,12 +53,10 @@ bool SimpleFilamentMonitor::Interrupt() noexcept
 // Call the following regularly to keep the status up to date
 bool SimpleFilamentMonitor::Poll() noexcept
 {
-#if defined(DA_VINCI_JR)
-	if (IsLpcPin(GetPort().GetPin()) && !LpcInterface::IsOnline())
+	if (!GetPort().IsAvailable())
 	{
 		return false;
 	}
-#endif
 	const bool b = GetPort().ReadDigital();
 	filamentPresent = (highWhenNoFilament) ? !b : b;
 	return true;
@@ -72,15 +66,17 @@ bool SimpleFilamentMonitor::Poll() noexcept
 // 'filamentConsumed' is the net amount of extrusion since the last call to this function.
 FilamentSensorStatus SimpleFilamentMonitor::Check(bool isPrinting, bool fromIsr, uint32_t isrMillis, float filamentConsumed) noexcept
 {
-	return !Poll() ? FilamentSensorStatus::noDataReceived
-		: (GetEnableMode() == 0 || filamentPresent) ? FilamentSensorStatus::ok : FilamentSensorStatus::noFilament;
+	return (GetEnableMode() == 0) ? FilamentSensorStatus::ok
+		: !Poll() ? FilamentSensorStatus::noDataReceived
+			: filamentPresent ? FilamentSensorStatus::ok : FilamentSensorStatus::noFilament;
 }
 
 // Clear the measurement state - called when we are not printing a file. Return the present/not present status if available.
 FilamentSensorStatus SimpleFilamentMonitor::Clear() noexcept
 {
-	return !Poll() ? FilamentSensorStatus::noDataReceived
-		: (GetEnableMode() == 0 || filamentPresent) ? FilamentSensorStatus::ok : FilamentSensorStatus::noFilament;
+	return (GetEnableMode() == 0) ? FilamentSensorStatus::ok
+		: !Poll() ? FilamentSensorStatus::noDataReceived
+			: filamentPresent ? FilamentSensorStatus::ok : FilamentSensorStatus::noFilament;
 }
 
 // Print diagnostic info for this sensor

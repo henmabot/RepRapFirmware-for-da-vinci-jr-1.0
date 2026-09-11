@@ -7,7 +7,6 @@
 #define SYST_RVR (*(volatile uint32_t *)0xE000E014u)
 #define SYST_CVR (*(volatile uint32_t *)0xE000E018u)
 
-
 #define LPC_SYSCON_BASE 0x40048000u
 #define LPC_IOCON_BASE  0x40044000u
 #define LPC_UART_BASE   0x40008000u
@@ -34,7 +33,7 @@
 #define LPC_UART_FDR             (*(volatile uint32_t *)(LPC_UART_BASE + 0x028u))
 #define LPC_UART_TER             (*(volatile uint32_t *)(LPC_UART_BASE + 0x030u))
 
-#endif
-
 #define LPC_ADC_CR               (*(volatile uint32_t *)(LPC_ADC_BASE + 0x000u))
 #define LPC_ADC_DR1              (*(volatile uint32_t *)(LPC_ADC_BASE + 0x014u))
+
+#endif

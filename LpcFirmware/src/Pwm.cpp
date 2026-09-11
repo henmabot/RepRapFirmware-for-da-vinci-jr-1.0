@@ -22,9 +22,9 @@ struct Channel
 };
 
 static constexpr Channel channels[] = {
-	{ 0x09, 0x064, 0x4000C000u, 0x0000FFFFu, 7, 1, 2, false }, // PIO0_9/CT16B0_MAT1 heater
-	{ 0x25, 0x044, Ct32b0Base, 0xFFFFFFFFu, 9, 0, 1, false }, // PIO2_5/CT32B0_MAT0 hotend fan
-	{ 0x1A, 0x06C, Ct16b1Base, 0x0000FFFFu, 8, 1, 2, true }   // PIO1_10/CT16B1_MAT1 reflow fan
+	{ LpcProtocol::Pins::Heater, 0x064, 0x4000C000u, 0x0000FFFFu, 7, 1, 2, false }, // PIO0_9/CT16B0_MAT1
+	{ LpcProtocol::Pins::HotendFan, 0x044, Ct32b0Base, 0xFFFFFFFFu, 9, 0, 1, false }, // PIO2_5/CT32B0_MAT0
+	{ LpcProtocol::Pins::ReflowFan, 0x06C, Ct16b1Base, 0x0000FFFFu, 8, 1, 2, true }   // PIO1_10/CT16B1_MAT1
 };
 
 static volatile uint32_t& TimerRegister(uintptr_t base, uintptr_t offset) noexcept
@@ -55,18 +55,26 @@ static void SetConstant(const Channel& channel, bool high) noexcept
 	Gpio::Configure(channel.pin, LpcProtocol::GpioMode::pwm, high);
 }
 
-
 bool Set(uint8_t pin, uint16_t duty, uint16_t frequency) noexcept
 {
 	const Channel* const channel = Find(pin);
-	if (channel == nullptr || frequency == 0)
+	if (channel == nullptr)
 	{
 		return false;
 	}
 
-	if (duty == 0 || duty == 65535u)
+	if (duty == 0)
 	{
-		SetConstant(*channel, duty != 0);
+		SetConstant(*channel, false);
+		return true;
+	}
+	if (frequency == 0)
+	{
+		return false;
+	}
+	if (duty == 65535u)
+	{
+		SetConstant(*channel, true);
 		return true;
 	}
 

@@ -33,6 +33,7 @@ public:
 
 	void AppendPinName(const StringRef& str) const noexcept;
 	bool IsValid() const noexcept { return logicalPin < NumNamedPins; }
+	bool IsAvailable() const noexcept;
 	bool GetInvert() const noexcept;
 	void SetInvert(bool pInvert) noexcept;
 	void ToggleInvert(bool pInvert) noexcept;

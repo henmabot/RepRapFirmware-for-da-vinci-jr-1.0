@@ -13,11 +13,13 @@ namespace LpcInterface
 static LpcProtocol::Decoder decoder;
 static LpcProtocol::GpioMode pinModes[NumLpcPins];
 static bool pinValues[NumLpcPins];
+static bool pinStateReceived[NumLpcPins];
 static uint16_t pwmValues[NumLpcPins];
 static uint16_t pwmFrequencies[NumLpcPins];
 static bool online;
 static uint32_t lastPingSent;
 static uint32_t lastPongReceived;
+static uint32_t connectionGeneration;
 static Mutex transmitMutex;
 
 static uint8_t thermistorPayload[16];
@@ -27,13 +29,13 @@ static uint8_t modelCPayload[5];
 static uint8_t heaterPayload[11];
 static uint8_t feedForwardPayload[12];
 static bool thermistorConfigured;
-static bool modelAConfigured;
-static bool modelBConfigured;
-static bool modelCConfigured;
+static int thermistorSensorNumber = -1;
+static bool modelConfigured;
 static bool heaterConfigured;
 static bool feedForwardConfigured;
 static bool thermalStatusReceived;
 static ThermalStatus thermalStatus;
+static uint32_t thermalStatusReceivedAt;
 
 static void PutFloat(uint8_t* destination, float value) noexcept
 {
@@ -90,7 +92,8 @@ static void Send(LpcProtocol::MessageType type, const uint8_t* payload, uint8_t 
 
 static void SendPing() noexcept
 {
-	Send(LpcProtocol::MessageType::ping, nullptr, 0);
+	const uint8_t payload[] = { LpcProtocol::Version };
+	Send(LpcProtocol::MessageType::ping, payload, sizeof(payload));
 	lastPingSent = millis();
 }
 
@@ -120,6 +123,8 @@ static void SendPwm(size_t index) noexcept
 
 static void ReplayConfiguration() noexcept
 {
+	MutexLocker lock(transmitMutex);
+	Send(LpcProtocol::MessageType::configurationReset, nullptr, 0);
 	for (size_t i = 0; i < NumLpcPins; ++i)
 	{
 		if (pinModes[i] != LpcProtocol::GpioMode::disabled)
@@ -132,25 +137,45 @@ static void ReplayConfiguration() noexcept
 		}
 	}
 	if (thermistorConfigured) { Send(LpcProtocol::MessageType::thermistorConfig, thermistorPayload, sizeof(thermistorPayload)); }
-	if (modelAConfigured) { Send(LpcProtocol::MessageType::heaterModelA, modelAPayload, sizeof(modelAPayload)); }
-	if (modelBConfigured) { Send(LpcProtocol::MessageType::heaterModelB, modelBPayload, sizeof(modelBPayload)); }
-	if (modelCConfigured) { Send(LpcProtocol::MessageType::heaterModelC, modelCPayload, sizeof(modelCPayload)); }
+	if (modelConfigured)
+	{
+		Send(LpcProtocol::MessageType::heaterModelA, modelAPayload, sizeof(modelAPayload));
+		Send(LpcProtocol::MessageType::heaterModelB, modelBPayload, sizeof(modelBPayload));
+		Send(LpcProtocol::MessageType::heaterModelC, modelCPayload, sizeof(modelCPayload));
+	}
 	if (heaterConfigured) { Send(LpcProtocol::MessageType::heaterConfig, heaterPayload, sizeof(heaterPayload)); }
 	if (feedForwardConfigured) { Send(LpcProtocol::MessageType::heaterFeedForward, feedForwardPayload, sizeof(feedForwardPayload)); }
+	Send(LpcProtocol::MessageType::configurationComplete, nullptr, 0);
+}
+
+static void SetOffline() noexcept
+{
+	online = false;
+	for (bool& received : pinStateReceived)
+	{
+		received = false;
+	}
+	thermalStatusReceived = false;
 }
 
 static void HandlePong(const LpcProtocol::Frame& frame) noexcept
 {
-	if (frame.length != 1 || frame.payload[0] != LpcProtocol::Version)
+	if (frame.length != 2 || frame.payload[0] != LpcProtocol::Version)
 	{
+		SetOffline();
 		return;
 	}
 
-	const bool reconnected = !online;
+	const bool reconnected = !online || frame.payload[1] != 0;
+	if (reconnected)
+	{
+		SetOffline();
+	}
 	online = true;
 	lastPongReceived = millis();
 	if (reconnected)
 	{
+		++connectionGeneration;
 		ReplayConfiguration();
 	}
 }
@@ -166,6 +191,7 @@ static void HandleGpioState(const LpcProtocol::Frame& frame) noexcept
 		if (GetLpcPinId(FirstLpcPin + i) == frame.payload[0])
 		{
 			pinValues[i] = frame.payload[1] != 0;
+			pinStateReceived[i] = true;
 			return;
 		}
 	}
@@ -173,16 +199,20 @@ static void HandleGpioState(const LpcProtocol::Frame& frame) noexcept
 
 static void HandleThermalStatus(const LpcProtocol::Frame& frame) noexcept
 {
-	if (frame.length != 8)
+	if (frame.length != 8
+		|| ReadU16(frame.payload + 2) >= 1024u
+		|| frame.payload[6] > static_cast<uint8_t>(LpcProtocol::HeaterState::heating)
+		|| frame.payload[7] > static_cast<uint8_t>(LpcProtocol::ThermalError::temperatureExcursion))
 	{
 		return;
 	}
+	TaskCriticalSectionLocker lock;
 	thermalStatus.temperature = static_cast<float>(ReadI16(frame.payload)) * 0.01f;
 	thermalStatus.rawAdc = ReadU16(frame.payload + 2);
 	thermalStatus.averagePwm = static_cast<float>(ReadU16(frame.payload + 4)) * (1.0f / 65535.0f);
 	thermalStatus.state = static_cast<LpcProtocol::HeaterState>(frame.payload[6]);
 	thermalStatus.error = static_cast<LpcProtocol::ThermalError>(frame.payload[7]);
-	thermalStatus.receivedAt = millis();
+	thermalStatusReceivedAt = millis();
 	thermalStatusReceived = true;
 }
 
@@ -193,6 +223,7 @@ void Init() noexcept
 	{
 		pinModes[i] = LpcProtocol::GpioMode::disabled;
 		pinValues[i] = false;
+		pinStateReceived[i] = false;
 		pwmValues[i] = 0;
 		pwmFrequencies[i] = 0;
 	}
@@ -233,7 +264,7 @@ void Spin() noexcept
 	const uint32_t now = millis();
 	if (online && now - lastPongReceived >= 3000)
 	{
-		online = false;
+		SetOffline();
 	}
 	if (now - lastPingSent >= 1000)
 	{
@@ -245,40 +276,75 @@ bool IsOnline() noexcept
 {
 	return online;
 }
+uint32_t GetConnectionGeneration() noexcept
+{
+	return connectionGeneration;
+}
+bool IsPinAvailable(Pin pin) noexcept
+{
+	if (!online || !IsLpcPin(pin))
+	{
+		return false;
+	}
+	const size_t index = pin - FirstLpcPin;
+	if (pinModes[index] == LpcProtocol::GpioMode::input || pinModes[index] == LpcProtocol::GpioMode::inputPullup)
+	{
+		return pinStateReceived[index];
+	}
+	if (pinModes[index] == LpcProtocol::GpioMode::analog)
+	{
+		ThermalStatus status;
+		return GetThermalStatus(status)
+			&& status.error != LpcProtocol::ThermalError::notConfigured
+			&& status.error != LpcProtocol::ThermalError::adcTimeout;
+	}
+	return true;
+}
 
 bool SetPinMode(Pin pin, PinMode mode) noexcept
 {
+	MutexLocker lock(transmitMutex);
 	if (!IsLpcPin(pin))
 	{
 		return false;
 	}
 
 	const size_t index = pin - FirstLpcPin;
+	const uint8_t capabilities = static_cast<uint8_t>(PinTable[pin].GetCapability());
 	switch (mode)
 	{
 	case INPUT:
-		pinModes[index] = LpcProtocol::GpioMode::input;
-		break;
 	case INPUT_PULLUP:
-		pinModes[index] = LpcProtocol::GpioMode::inputPullup;
+		if ((capabilities & static_cast<uint8_t>(PinCapability::read)) == 0)
+		{
+			return false;
+		}
+		pinModes[index] = (mode == INPUT) ? LpcProtocol::GpioMode::input : LpcProtocol::GpioMode::inputPullup;
+		pinStateReceived[index] = false;
 		break;
 	case OUTPUT_LOW:
-		pinModes[index] = LpcProtocol::GpioMode::output;
-		pinValues[index] = false;
-		break;
 	case OUTPUT_HIGH:
+		if ((capabilities & static_cast<uint8_t>(PinCapability::write)) == 0)
+		{
+			return false;
+		}
 		pinModes[index] = LpcProtocol::GpioMode::output;
-		pinValues[index] = true;
+		pinValues[index] = mode == OUTPUT_HIGH;
 		break;
 	case OUTPUT_PWM_LOW:
-		pinModes[index] = LpcProtocol::GpioMode::pwm;
-		pinValues[index] = false;
-		break;
 	case OUTPUT_PWM_HIGH:
+		if ((capabilities & static_cast<uint8_t>(PinCapability::pwm)) == 0)
+		{
+			return false;
+		}
 		pinModes[index] = LpcProtocol::GpioMode::pwm;
-		pinValues[index] = true;
+		pinValues[index] = mode == OUTPUT_PWM_HIGH;
 		break;
 	case AIN:
+		if ((capabilities & static_cast<uint8_t>(PinCapability::ain)) == 0)
+		{
+			return false;
+		}
 		pinModes[index] = LpcProtocol::GpioMode::analog;
 		break;
 	default:
@@ -299,11 +365,12 @@ bool ReadPin(Pin pin) noexcept
 
 uint16_t ReadAnalog(Pin pin) noexcept
 {
-	return (IsLpcPin(pin) && GetLpcPinId(pin) == 0x10 && thermalStatusReceived) ? thermalStatus.rawAdc : 0;
+	return (IsLpcPin(pin) && GetLpcPinId(pin) == LpcProtocol::Pins::HotendNtc && thermalStatusReceived) ? thermalStatus.rawAdc : 0;
 }
 
 void WritePin(Pin pin, bool high) noexcept
 {
+	MutexLocker lock(transmitMutex);
 	if (!IsLpcPin(pin))
 	{
 		return;
@@ -319,6 +386,7 @@ void WritePin(Pin pin, bool high) noexcept
 
 void WritePwm(Pin pin, float duty, uint16_t frequency) noexcept
 {
+	MutexLocker lock(transmitMutex);
 	if (!IsLpcPin(pin))
 	{
 		return;
@@ -333,12 +401,14 @@ void WritePwm(Pin pin, float duty, uint16_t frequency) noexcept
 	}
 }
 
-void ConfigureThermistor(float r25, float beta, float coefficientC, float seriesResistance) noexcept
+void ConfigureThermistor(unsigned int sensorNumber, float r25, float beta, float coefficientC, float seriesResistance) noexcept
 {
+	MutexLocker lock(transmitMutex);
 	PutFloat(thermistorPayload, r25);
 	PutFloat(thermistorPayload + 4, beta);
 	PutFloat(thermistorPayload + 8, coefficientC);
 	PutFloat(thermistorPayload + 12, seriesResistance);
+	thermistorSensorNumber = static_cast<int>(sensorNumber);
 	thermistorConfigured = true;
 	if (online)
 	{
@@ -346,8 +416,26 @@ void ConfigureThermistor(float r25, float beta, float coefficientC, float series
 	}
 }
 
+void UnregisterThermistor(unsigned int sensorNumber) noexcept
+{
+	MutexLocker lock(transmitMutex);
+	if (thermistorSensorNumber == static_cast<int>(sensorNumber))
+	{
+		CommandHeater(LpcProtocol::HeaterCommand::off, 0.0f);
+		thermistorSensorNumber = -1;
+		thermistorConfigured = false;
+	}
+}
+
+bool IsThermistorSensor(unsigned int sensorNumber) noexcept
+{
+	MutexLocker lock(transmitMutex);
+	return thermistorConfigured && thermistorSensorNumber == static_cast<int>(sensorNumber);
+}
+
 void ConfigureHeaterModel(const FopDt& model) noexcept
 {
+	MutexLocker lock(transmitMutex);
 	PutFloat(modelAPayload, model.GetHeatingRate());
 	PutFloat(modelAPayload + 4, model.GetBasicCoolingRate());
 	PutFloat(modelAPayload + 8, model.GetFanCoolingRate());
@@ -359,7 +447,7 @@ void ConfigureHeaterModel(const FopDt& model) noexcept
 	PutFloat(modelBPayload + 12, pid.recipTi);
 	PutFloat(modelCPayload, pid.tD);
 	modelCPayload[4] = static_cast<uint8_t>((model.UsePid() ? 0x01u : 0u) | (model.IsInverted() ? 0x02u : 0u) | (model.ArePidParametersOverridden() ? 0x04u : 0u));
-	modelAConfigured = modelBConfigured = modelCConfigured = true;
+	modelConfigured = true;
 	if (online)
 	{
 		Send(LpcProtocol::MessageType::heaterModelA, modelAPayload, sizeof(modelAPayload));
@@ -370,6 +458,7 @@ void ConfigureHeaterModel(const FopDt& model) noexcept
 
 void ConfigureHeater(uint16_t frequency, float upperLimit, float lowerLimit, float maxExcursion, float maxFaultTime, uint8_t maxBadReadings) noexcept
 {
+	MutexLocker lock(transmitMutex);
 	PutU16(heaterPayload, frequency);
 	PutU16(heaterPayload + 2, static_cast<uint16_t>(ToDeciDegrees(upperLimit)));
 	PutU16(heaterPayload + 4, static_cast<uint16_t>(ToDeciDegrees(lowerLimit)));
@@ -399,6 +488,7 @@ void CommandHeater(LpcProtocol::HeaterCommand command, float targetTemperature) 
 
 void ConfigureHeaterFeedForward(float fanPwm, float extrusionPwmBoost, float extrusionTemperatureBoost) noexcept
 {
+	MutexLocker lock(transmitMutex);
 	PutFloat(feedForwardPayload, fanPwm);
 	PutFloat(feedForwardPayload + 4, extrusionPwmBoost);
 	PutFloat(feedForwardPayload + 8, extrusionTemperatureBoost);
@@ -411,7 +501,8 @@ void ConfigureHeaterFeedForward(float fanPwm, float extrusionPwmBoost, float ext
 
 bool GetThermalStatus(ThermalStatus& status) noexcept
 {
-	if (!online || !thermalStatusReceived || millis() - thermalStatus.receivedAt >= 1000)
+	TaskCriticalSectionLocker lock;
+	if (!online || !thermalStatusReceived || millis() - thermalStatusReceivedAt >= 1000)
 	{
 		return false;
 	}

@@ -33,11 +33,12 @@ protected:
 private:
 	void SendConfiguration() noexcept;
 	void SendFeedForward() noexcept;
+	void RaiseFault(LpcProtocol::ThermalError error) noexcept;
+	GCodeResult ValidateMonitors(const StringRef& reply) const noexcept;
 
 	PwmFrequency frequency;
 	HeaterMode mode;
-	float temperature;
-	float averagePwm;
+	uint32_t connectionGeneration;
 };
 
 #endif

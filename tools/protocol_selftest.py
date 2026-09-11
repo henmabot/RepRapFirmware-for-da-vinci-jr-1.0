@@ -49,7 +49,12 @@ int main()
         payload[i] = static_cast<uint8_t>(i * 17u + 3u);
     }
 
-    RoundTrip(MessageType::ping, nullptr, 0);
+    const uint8_t version[] = { Version };
+    const uint8_t pong[] = { Version, 1 };
+    RoundTrip(MessageType::ping, version, sizeof(version));
+    RoundTrip(MessageType::pong, pong, sizeof(pong));
+    RoundTrip(MessageType::configurationReset, nullptr, 0);
+    RoundTrip(MessageType::configurationComplete, nullptr, 0);
     RoundTrip(MessageType::gpioState, payload, 2);
     RoundTrip(MessageType::pwmWrite, payload, 5);
     RoundTrip(MessageType::thermalStatus, payload, 8);

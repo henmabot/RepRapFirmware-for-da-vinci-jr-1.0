@@ -6,6 +6,14 @@
 #include <Platform/Event.h>
 #include <Tools/Tool.h>
 
+static_assert(static_cast<uint8_t>(LpcProtocol::HeaterState::fault) == static_cast<uint8_t>(HeaterMode::fault)
+	&& static_cast<uint8_t>(LpcProtocol::HeaterState::offline) == static_cast<uint8_t>(HeaterMode::offline)
+	&& static_cast<uint8_t>(LpcProtocol::HeaterState::off) == static_cast<uint8_t>(HeaterMode::off)
+	&& static_cast<uint8_t>(LpcProtocol::HeaterState::suspended) == static_cast<uint8_t>(HeaterMode::suspended)
+	&& static_cast<uint8_t>(LpcProtocol::HeaterState::cooling) == static_cast<uint8_t>(HeaterMode::cooling)
+	&& static_cast<uint8_t>(LpcProtocol::HeaterState::stable) == static_cast<uint8_t>(HeaterMode::stable)
+	&& static_cast<uint8_t>(LpcProtocol::HeaterState::heating) == static_cast<uint8_t>(HeaterMode::heating));
+
 static HeaterFaultType GetHeaterFaultType(LpcProtocol::ThermalError error) noexcept
 {
 	switch (error)
@@ -13,6 +21,7 @@ static HeaterFaultType GetHeaterFaultType(LpcProtocol::ThermalError error) noexc
 	case LpcProtocol::ThermalError::adcTimeout:
 	case LpcProtocol::ThermalError::shortCircuit:
 	case LpcProtocol::ThermalError::openCircuit:
+	case LpcProtocol::ThermalError::linkTimeout:
 		return HeaterFaultType::failedToReadSensor;
 	case LpcProtocol::ThermalError::heatingTooSlow:
 		return HeaterFaultType::temperatureRisingTooSlowly;
@@ -47,7 +56,7 @@ static const char* GetThermalErrorText(LpcProtocol::ThermalError error) noexcept
 
 LpcHeater::LpcHeater(unsigned int heaterNum) noexcept
 	: Heater(heaterNum), frequency(DefaultHeaterPwmFreq), mode(HeaterMode::off),
-	  temperature(BadErrorTemperature), averagePwm(0.0f)
+	  connectionGeneration(LpcInterface::GetConnectionGeneration())
 {
 }
 
@@ -90,24 +99,37 @@ GCodeResult LpcHeater::ReportDetails(const StringRef& reply) const noexcept
 
 void LpcHeater::Spin() noexcept
 {
+	const uint32_t currentGeneration = LpcInterface::GetConnectionGeneration();
+	if (currentGeneration != connectionGeneration)
+	{
+		connectionGeneration = currentGeneration;
+		if (mode >= HeaterMode::suspended)
+		{
+			RaiseFault(LpcProtocol::ThermalError::linkTimeout);
+		}
+	}
 	LpcInterface::ThermalStatus status;
 	if (LpcInterface::GetThermalStatus(status))
 	{
-		const HeaterMode previousMode = mode;
-		temperature = status.temperature;
-		averagePwm = status.averagePwm;
-		mode = static_cast<HeaterMode>(status.state);
-		if (mode == HeaterMode::fault && previousMode != HeaterMode::fault)
+		if (mode != HeaterMode::fault)
 		{
-			Tool::FlagTemperatureFault(GetHeaterNumber());
-			(void)Event::AddEvent(EventType::heater_fault, static_cast<uint16_t>(GetHeaterFaultType(status.error)),
-				CanInterface::GetCanAddress(), GetHeaterNumber(), "%s", GetThermalErrorText(status.error));
+			mode = static_cast<HeaterMode>(status.state);
+			if (mode == HeaterMode::fault)
+			{
+				RaiseFault(status.error);
+			}
 		}
 	}
 	else if (mode != HeaterMode::fault)
 	{
-		mode = HeaterMode::offline;
-		averagePwm = 0.0f;
+		if (mode >= HeaterMode::suspended)
+		{
+			RaiseFault(LpcProtocol::ThermalError::linkTimeout);
+		}
+		else
+		{
+			mode = HeaterMode::offline;
+		}
 	}
 }
 
@@ -118,7 +140,6 @@ void LpcHeater::SwitchOff() noexcept
 	{
 		mode = HeaterMode::off;
 	}
-	averagePwm = 0.0f;
 	Heater::SwitchOff();
 }
 
@@ -131,7 +152,6 @@ GCodeResult LpcHeater::ResetFault(const StringRef& reply) noexcept
 	}
 	LpcInterface::CommandHeater(LpcProtocol::HeaterCommand::resetFault, 0.0f);
 	mode = HeaterMode::off;
-	averagePwm = 0.0f;
 	return GCodeResult::ok;
 }
 
@@ -154,12 +174,12 @@ float LpcHeater::GetAveragePWM() const noexcept
 
 void LpcHeater::Suspend(bool sus) noexcept
 {
-	if (sus)
+	if (sus && (mode == HeaterMode::stable || mode == HeaterMode::heating || mode == HeaterMode::cooling))
 	{
 		LpcInterface::CommandHeater(LpcProtocol::HeaterCommand::suspend, GetTargetTemperature());
 		mode = HeaterMode::suspended;
 	}
-	else
+	else if (!sus && mode == HeaterMode::suspended)
 	{
 		String<1> dummy;
 		(void)SwitchOn(dummy.GetRef());
@@ -185,6 +205,26 @@ GCodeResult LpcHeater::SwitchOn(const StringRef& reply) noexcept
 	if (!LpcInterface::IsOnline())
 	{
 		reply.copy("LPC heater is offline");
+		return GCodeResult::error;
+	}
+	if (!LpcInterface::IsThermistorSensor(GetSensorNumber()))
+	{
+		reply.printf("Heater %u must use the NTC configured on lpc.ntc", GetHeaterNumber());
+		return GCodeResult::error;
+	}
+	if (!Succeeded(ValidateMonitors(reply)))
+	{
+		return GCodeResult::error;
+	}
+	LpcInterface::ThermalStatus status;
+	if (!LpcInterface::GetThermalStatus(status))
+	{
+		reply.copy("LPC thermal status is unavailable");
+		return GCodeResult::error;
+	}
+	if (status.state == LpcProtocol::HeaterState::fault)
+	{
+		reply.printf("LPC heater is in fault state: %s", GetThermalErrorText(status.error));
 		return GCodeResult::error;
 	}
 	if (GetHighestTemperatureLimit() >= BadErrorTemperature)
@@ -215,6 +255,11 @@ GCodeResult LpcHeater::UpdateFaultDetectionParameters(const StringRef& reply) no
 
 GCodeResult LpcHeater::UpdateHeaterMonitors(const StringRef& reply) noexcept
 {
+	const GCodeResult result = ValidateMonitors(reply);
+	if (!Succeeded(result))
+	{
+		return result;
+	}
 	SendConfiguration();
 	return GCodeResult::ok;
 }
@@ -227,14 +272,29 @@ GCodeResult LpcHeater::StartAutoTune(const StringRef& reply, bool seenA, float a
 
 void LpcHeater::ApplyExtrusionFeedForward() noexcept
 {
-	previousExtrusionPwmBoost = extrusionPwmBoost;
 	SendFeedForward();
 }
 
 void LpcHeater::SendConfiguration() noexcept
 {
+	float upperLimit = BadErrorTemperature;
+	float lowerLimit = ABS_ZERO;
+	for (const HeaterMonitor& monitor : monitors)
+	{
+		switch (monitor.GetTrigger())
+		{
+		case HeaterMonitorTrigger::TemperatureExceeded:
+			upperLimit = min(upperLimit, monitor.GetTemperatureLimit());
+			break;
+		case HeaterMonitorTrigger::TemperatureTooLow:
+			lowerLimit = max(lowerLimit, monitor.GetTemperatureLimit());
+			break;
+		default:
+			break;
+		}
+	}
 	LpcInterface::ConfigureHeater(frequency,
-		GetHighestTemperatureLimit(), GetLowestTemperatureLimit(),
+		upperLimit, lowerLimit,
 		GetMaxTemperatureExcursion(), GetMaxHeatingFaultTime(),
 		static_cast<uint8_t>(min<uint32_t>(GetMaxBadTemperatureCount(), 255u)));
 }
@@ -242,4 +302,35 @@ void LpcHeater::SendConfiguration() noexcept
 void LpcHeater::SendFeedForward() noexcept
 {
 	LpcInterface::ConfigureHeaterFeedForward(lastFanPwm, extrusionPwmBoost, extrusionTemperatureBoost);
+}
+
+void LpcHeater::RaiseFault(LpcProtocol::ThermalError error) noexcept
+{
+	mode = HeaterMode::fault;
+	LpcInterface::CommandHeater(LpcProtocol::HeaterCommand::off, 0.0f);
+	Tool::FlagTemperatureFault(GetHeaterNumber());
+	(void)Event::AddEvent(EventType::heater_fault, static_cast<uint16_t>(GetHeaterFaultType(error)),
+		CanInterface::GetCanAddress(), GetHeaterNumber(), "%s", GetThermalErrorText(error));
+}
+
+GCodeResult LpcHeater::ValidateMonitors(const StringRef& reply) const noexcept
+{
+	for (const HeaterMonitor& monitor : monitors)
+	{
+		if (monitor.GetTrigger() == HeaterMonitorTrigger::Disabled)
+		{
+			continue;
+		}
+		if (monitor.GetSensorNumber() != GetSensorNumber())
+		{
+			reply.copy("LPC heater monitors must use the heater's lpc.ntc sensor");
+			return GCodeResult::error;
+		}
+		if (monitor.GetAction() != HeaterMonitorAction::GenerateFault)
+		{
+			reply.copy("LPC heater monitors only support the generate-fault action");
+			return GCodeResult::error;
+		}
+	}
+	return GCodeResult::ok;
 }
