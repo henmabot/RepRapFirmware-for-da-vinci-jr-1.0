@@ -8,6 +8,8 @@ struct PinDefinition
 {
 	uint8_t id;
 	uint16_t ioconOffset;
+	uint8_t gpioFunction;
+	bool analogCapable;
 };
 
 struct PinState
@@ -17,18 +19,18 @@ struct PinState
 };
 
 static constexpr PinDefinition pins[] = {
-	{ 0x27, 0x020 }, // PIO2_7, filament runout
-	{ 0x21, 0x028 }, // PIO2_1, extruder rotation sensor
-	{ 0x06, 0x04C }, // PIO0_6, hotend filament sensor
-	{ 0x2A, 0x058 }, // PIO2_10, status LED
-	{ 0x04, 0x030 }, // PIO0_4, NFC SCL
-	{ 0x05, 0x034 }, // PIO0_5, NFC SDA
-	{ 0x30, 0x084 }, // PIO3_0, NFC TX
-	{ 0x31, 0x088 }, // PIO3_1, NFC RX
-	{ 0x09, 0x064 }, // PIO0_9, heater
-	{ 0x25, 0x044 }, // PIO2_5, hotend fan
-	{ 0x1A, 0x06C }, // PIO1_10, reflow fan
-	{ 0x10, 0x078 }  // PIO1_0, hotend NTC/AD1
+	{ LpcProtocol::Pins::FilamentRunout, 0x020, 0, false }, // PIO2_7
+	{ LpcProtocol::Pins::Rotation, 0x028, 0, false },        // PIO2_1
+	{ LpcProtocol::Pins::HotendFilament, 0x04C, 0, false }, // PIO0_6
+	{ LpcProtocol::Pins::StatusLed, 0x058, 0, false },       // PIO2_10
+	{ LpcProtocol::Pins::NfcScl, 0x030, 0, false },          // PIO0_4
+	{ LpcProtocol::Pins::NfcSda, 0x034, 0, false },          // PIO0_5
+	{ LpcProtocol::Pins::NfcTx, 0x084, 0, false },           // PIO3_0
+	{ LpcProtocol::Pins::NfcRx, 0x088, 0, false },           // PIO3_1
+	{ LpcProtocol::Pins::Heater, 0x064, 0, false },          // PIO0_9
+	{ LpcProtocol::Pins::HotendFan, 0x044, 0, false },       // PIO2_5
+	{ LpcProtocol::Pins::ReflowFan, 0x06C, 0, true },        // PIO1_10/AD6
+	{ LpcProtocol::Pins::HotendNtc, 0x078, 1, true }         // R/PIO1_0/AD1
 };
 
 static PinState states[sizeof(pins) / sizeof(pins[0])];
@@ -78,10 +80,11 @@ static void WriteRaw(uint8_t pin, bool value) noexcept
 void Init() noexcept
 {
 	LPC_SYSCON_SYSAHBCLKCTRL |= (1u << 16) | (1u << 6);
-	for (PinState& state : states)
+	for (unsigned int i = 0; i < sizeof(pins) / sizeof(pins[0]); ++i)
 	{
-		state.mode = LpcProtocol::GpioMode::disabled;
-		state.lastValue = false;
+		states[i].mode = LpcProtocol::GpioMode::disabled;
+		states[i].lastValue = false;
+		(void)Configure(pins[i].id, LpcProtocol::GpioMode::disabled, false);
 	}
 }
 
@@ -93,20 +96,25 @@ bool Configure(uint8_t pin, LpcProtocol::GpioMode mode, bool initialValue) noexc
 		return false;
 	}
 
+	const uint32_t mask = 1u << (pin & 0x0Fu);
 	volatile uint32_t& iocon = Iocon(static_cast<unsigned int>(index));
 	if (mode == LpcProtocol::GpioMode::analog)
 	{
 		iocon = (iocon & ~0x9Fu) | 0x02u;
+		Direction(pin) &= ~mask;
 		states[index].mode = mode;
 		return true;
 	}
-	iocon &= ~((0x07u) | (0x03u << 3));
+	iocon = (iocon & ~((0x07u) | (0x03u << 3))) | pins[index].gpioFunction;
+	if (pins[index].analogCapable)
+	{
+		iocon |= 1u << 7;
+	}
 	if (mode == LpcProtocol::GpioMode::inputPullup)
 	{
 		iocon |= 0x02u << 3;
 	}
 
-	const uint32_t mask = 1u << (pin & 0x0Fu);
 	if (mode == LpcProtocol::GpioMode::output || mode == LpcProtocol::GpioMode::pwm)
 	{
 		WriteRaw(pin, initialValue);

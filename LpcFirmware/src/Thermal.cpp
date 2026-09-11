@@ -18,7 +18,8 @@ constexpr float MinimumConnectedTemperature = -5.0f;
 constexpr float NormalAmbientTemperature = 25.0f;
 constexpr float TemperatureCloseEnough = 1.5f;
 constexpr float MaxAmbientTemperature = 45.0f;
-constexpr uint8_t HeaterPin = 0x09;
+constexpr float FanFeedForwardMultiplier = 0.7f;
+constexpr uint8_t HeaterPin = LpcProtocol::Pins::Heater;
 constexpr uint16_t AdcRange = 1024u;
 
 struct Model
@@ -35,9 +36,6 @@ struct Model
 	bool usePid;
 	bool inverted;
 	bool pidOverridden;
-	bool partA;
-	bool partB;
-	bool partC;
 };
 
 struct Pid
@@ -74,6 +72,7 @@ static float maxFaultTime;
 static float fanPwm;
 static float extrusionPwmBoost;
 static float extrusionTemperatureBoost;
+static float lastExtrusionTemperatureBoost;
 static float integral;
 static float averagePwm;
 static float lastPwm;
@@ -83,10 +82,13 @@ static uint8_t previousIndex;
 static uint8_t goodTemperatureMask;
 static bool thermistorConfigured;
 static bool heaterConfigured;
-static bool reachedTarget;
+static bool modelConfigured;
 static Model model;
-static LpcProtocol::HeaterState state;
-static LpcProtocol::ThermalError error;
+static Model pendingModel;
+static uint8_t pendingModelParts;
+static volatile LpcProtocol::HeaterState state;
+static volatile LpcProtocol::ThermalError error;
+static volatile bool linkTimeoutLatched;
 
 static float ReadFloat(const uint8_t* data) noexcept
 {
@@ -110,16 +112,18 @@ static float Clamp(float value, float low, float high) noexcept
 	return (value < low) ? low : (value > high) ? high : value;
 }
 
-static bool ModelReady() noexcept
+static bool ModelReady(const Model& candidate) noexcept
 {
-	return model.partA && model.partB && model.partC
-		&& isfinite(model.heatingRate) && model.heatingRate > 0.0f
-		&& isfinite(model.basicCoolingRate) && model.basicCoolingRate > 0.0f
-		&& isfinite(model.fanCoolingRate) && model.fanCoolingRate >= 0.0f
-		&& isfinite(model.coolingRateExponent) && model.coolingRateExponent >= 1.0f && model.coolingRateExponent <= 1.6f
-		&& isfinite(model.deadTime) && model.deadTime > 0.0f
-		&& isfinite(model.maxPwm) && model.maxPwm > 0.0f && model.maxPwm <= 1.0f;
+	return isfinite(candidate.heatingRate) && candidate.heatingRate > 0.0f
+		&& isfinite(candidate.basicCoolingRate) && candidate.basicCoolingRate >= 0.0f
+		&& isfinite(candidate.fanCoolingRate) && candidate.fanCoolingRate >= 0.0f
+		&& isfinite(candidate.coolingRateExponent) && candidate.coolingRateExponent >= 1.0f && candidate.coolingRateExponent <= 1.6f
+		&& isfinite(candidate.deadTime) && candidate.deadTime > 0.0f
+		&& isfinite(candidate.maxPwm) && candidate.maxPwm > 0.0f && candidate.maxPwm <= 1.0f
+		&& (!candidate.pidOverridden || (isfinite(candidate.overrideKp) && isfinite(candidate.overrideRecipTi) && isfinite(candidate.overrideTd)));
 }
+
+static uint32_t Millis() noexcept;
 
 static bool LinkAlive() noexcept
 {
@@ -131,11 +135,41 @@ static bool Active() noexcept
 	return state >= LpcProtocol::HeaterState::cooling;
 }
 
+static bool InPidMode() noexcept
+{
+	return state >= LpcProtocol::HeaterState::cooling && state <= LpcProtocol::HeaterState::heating;
+}
+
+static void UpdateHeaterState(float target) noexcept
+{
+	const LpcProtocol::HeaterState newState = (temperature + TemperatureCloseEnough < target)
+		? LpcProtocol::HeaterState::heating
+		: (temperature > target + TemperatureCloseEnough)
+			? LpcProtocol::HeaterState::cooling
+			: LpcProtocol::HeaterState::stable;
+	if (newState != state)
+	{
+		if (newState == LpcProtocol::HeaterState::heating)
+		{
+			heatingReferenceTemperature = temperature;
+			heatingReferenceMillis = timeSetHeating = Millis();
+		}
+		heatingFaultMillis = 0;
+		excursionFaultMillis = 0;
+		state = newState;
+	}
+}
+
 static void ApplyHeater(float pwm) noexcept
 {
-	const float limited = Clamp(pwm, 0.0f, 1.0f);
+	const bool timeoutBeforeWrite = linkTimeoutLatched;
+	const float limited = timeoutBeforeWrite ? 0.0f : Clamp(pwm, 0.0f, 1.0f);
 	const uint16_t duty = static_cast<uint16_t>(limited * 65535.0f + 0.5f);
 	(void)Pwm::Set(HeaterPin, duty, heaterFrequency);
+	if (!timeoutBeforeWrite && linkTimeoutLatched)
+	{
+		(void)Pwm::Set(HeaterPin, 0, heaterFrequency);
+	}
 }
 
 static void SetFault(LpcProtocol::ThermalError newError) noexcept
@@ -300,74 +334,88 @@ static void Control() noexcept
 		return;
 	}
 
-	const float adjustedTarget = targetTemperature + extrusionTemperatureBoost;
-	const float tempError = adjustedTarget - temperature;
-	state = (tempError > TemperatureCloseEnough) ? LpcProtocol::HeaterState::heating
-		: (tempError < -TemperatureCloseEnough) ? LpcProtocol::HeaterState::cooling
-		: LpcProtocol::HeaterState::stable;
-
-	if (state == LpcProtocol::HeaterState::stable)
+	const float boostedTarget = targetTemperature + extrusionTemperatureBoost;
+	const float adjustedTarget = (boostedTarget < upperLimit) ? boostedTarget : upperLimit;
+	if (InPidMode() && extrusionTemperatureBoost != lastExtrusionTemperatureBoost)
 	{
-		reachedTarget = true;
+		UpdateHeaterState(adjustedTarget);
+		lastExtrusionTemperatureBoost = extrusionTemperatureBoost;
 	}
-
+	const float tempError = adjustedTarget - temperature;
 	const uint32_t now = Millis();
-	if (state == LpcProtocol::HeaterState::heating && !reachedTarget)
+	switch (state)
 	{
-		if (static_cast<float>(now - timeSetHeating) < model.deadTime * 2000.0f)
+	case LpcProtocol::HeaterState::heating:
+		if (tempError <= TemperatureCloseEnough)
+		{
+			state = LpcProtocol::HeaterState::stable;
+			heatingFaultMillis = 0;
+		}
+		else if (static_cast<float>(now - timeSetHeating) < model.deadTime * 2000.0f)
 		{
 			heatingReferenceTemperature = temperature;
 			heatingReferenceMillis = now;
 			heatingFaultMillis = 0;
 		}
-		else
+		else if (gotDerivative)
 		{
 			const float temperatureRise = (temperature > 15.0f) ? temperature - 15.0f : 0.0f;
-			const float expectedRate = model.heatingRate * lastPwm - CoolingRate(temperatureRise, 1.0f);
-			if (expectedRate > 0.0f)
+			const float heatingPwm = (averagePwm < lastPwm) ? averagePwm : lastPwm;
+			const float expectedRate = model.heatingRate * heatingPwm - CoolingRate(temperatureRise, 1.0f);
+			const uint32_t actualInterval = now - heatingReferenceMillis;
+			if (expectedRate <= 0.0f || static_cast<float>(actualInterval) * expectedRate >= 3000.0f)
 			{
-				const uint32_t minimumInterval = static_cast<uint32_t>(3000.0f / expectedRate);
-				const uint32_t actualInterval = now - heatingReferenceMillis;
-				if (actualInterval >= minimumInterval)
+				const float expectedRise = expectedRate * static_cast<float>(actualInterval) * 0.001f;
+				const float actualRise = temperature - heatingReferenceTemperature;
+				if (expectedRate > 0.0f && actualRise < expectedRise * 0.6f)
 				{
-					const float expectedRise = expectedRate * static_cast<float>(actualInterval) * 0.001f;
-					const float actualRise = temperature - heatingReferenceTemperature;
-					if (actualRise < expectedRise * 0.6f)
+					heatingFaultMillis += SampleIntervalMillis;
+					if (heatingFaultMillis > static_cast<uint32_t>(maxFaultTime * 1000.0f))
 					{
-						heatingFaultMillis += SampleIntervalMillis;
-						if (heatingFaultMillis > static_cast<uint32_t>(maxFaultTime * 1000.0f))
-						{
-							SetFault(LpcProtocol::ThermalError::heatingTooSlow);
-							return;
-						}
+						SetFault(LpcProtocol::ThermalError::heatingTooSlow);
+						return;
 					}
-					else
+				}
+				else
+				{
+					heatingReferenceTemperature = temperature;
+					heatingReferenceMillis = now;
+					if (heatingFaultMillis >= SampleIntervalMillis)
 					{
-						heatingReferenceTemperature = temperature;
-						heatingReferenceMillis = now;
-						heatingFaultMillis = 0;
+						heatingFaultMillis -= SampleIntervalMillis;
 					}
 				}
 			}
 		}
-	}
-	else
-	{
-		heatingFaultMillis = 0;
-	}
+		break;
 
-	if (reachedTarget && fabsf(tempError) > maxTempExcursion && temperature > MaxAmbientTemperature)
-	{
-		excursionFaultMillis += SampleIntervalMillis;
-		if (excursionFaultMillis > static_cast<uint32_t>(maxFaultTime * 1000.0f))
+	case LpcProtocol::HeaterState::stable:
+		if (fabsf(tempError) > maxTempExcursion && temperature > MaxAmbientTemperature)
 		{
-			SetFault(LpcProtocol::ThermalError::temperatureExcursion);
-			return;
+			excursionFaultMillis += SampleIntervalMillis;
+			if (excursionFaultMillis > static_cast<uint32_t>(maxFaultTime * 1000.0f))
+			{
+				SetFault(LpcProtocol::ThermalError::temperatureExcursion);
+				return;
+			}
 		}
-	}
-	else
-	{
-		excursionFaultMillis = 0;
+		else if (excursionFaultMillis >= SampleIntervalMillis)
+		{
+			excursionFaultMillis -= SampleIntervalMillis;
+		}
+		break;
+
+	case LpcProtocol::HeaterState::cooling:
+		if (-tempError <= TemperatureCloseEnough && adjustedTarget > MaxAmbientTemperature)
+		{
+			state = LpcProtocol::HeaterState::stable;
+			heatingFaultMillis = 0;
+			excursionFaultMillis = 0;
+		}
+		break;
+
+	default:
+		break;
 	}
 
 	float pwm;
@@ -377,18 +425,16 @@ static void Control() noexcept
 		const Pid pid = PidForTarget(loadMode, adjustedTarget);
 		const float errorMinusD = tempError - (gotDerivative ? pid.tD * derivative : 0.0f);
 		const float pPlusD = pid.kP * errorMinusD;
-		const float expected = (model.heatingRate > 0.0f)
-			? CoolingRate(temperature - NormalAmbientTemperature, fanPwm) / model.heatingRate + extrusionPwmBoost
-			: 0.0f;
-		if (pPlusD + expected >= model.maxPwm)
+		const float expected = CoolingRate(temperature - NormalAmbientTemperature, fanPwm) / model.heatingRate;
+		if (pPlusD + expected > model.maxPwm)
 		{
 			pwm = model.maxPwm;
 			if (state == LpcProtocol::HeaterState::heating && tempError > 0.0f && derivative > 0.0f)
 			{
-				integral = Clamp(expected, 0.0f, model.maxPwm);
+				integral = expected;
 			}
 		}
-		else if (pPlusD + expected <= 0.0f)
+		else if (pPlusD + expected < 0.0f)
 		{
 			pwm = 0.0f;
 		}
@@ -407,42 +453,79 @@ static void Control() noexcept
 	{
 		pwm = model.maxPwm - pwm;
 	}
+	if (linkTimeoutLatched)
+	{
+		SetFault(LpcProtocol::ThermalError::linkTimeout);
+		return;
+	}
 	ApplyHeater(pwm);
 	lastPwm = pwm;
 	averagePwm = averagePwm * 0.95f + pwm * 0.05f;
 	statusDirty = true;
 }
 
-void Init() noexcept
+void ResetConfiguration() noexcept
 {
-	state = LpcProtocol::HeaterState::off;
-	error = LpcProtocol::ThermalError::notConfigured;
+	heaterFrequency = 250;
+	maxBadReadings = 3;
+	thermistorConfigured = false;
+	heaterConfigured = false;
+	modelConfigured = false;
+	pendingModelParts = 0;
+	badReadings = 0;
+	lastRawAdc = 0;
+	temperature = AbsoluteZero;
+	targetTemperature = 0.0f;
 	upperLimit = 2000.0f;
 	lowerLimit = AbsoluteZero;
 	maxTempExcursion = 15.0f;
 	maxFaultTime = 5.0f;
+	fanPwm = 0.0f;
+	extrusionPwmBoost = 0.0f;
+	extrusionTemperatureBoost = 0.0f;
+	lastExtrusionTemperatureBoost = 0.0f;
+	integral = 0.0f;
+	averagePwm = 0.0f;
+	lastPwm = 0.0f;
+	heatingReferenceTemperature = 0.0f;
+	heatingReferenceMillis = 0;
+	timeSetHeating = 0;
+	excursionFaultMillis = 0;
+	heatingFaultMillis = 0;
+	previousIndex = 0;
+	goodTemperatureMask = 0;
+	state = LpcProtocol::HeaterState::off;
+	error = LpcProtocol::ThermalError::notConfigured;
+	linkTimeoutLatched = false;
+	ApplyHeater(0.0f);
+	statusDirty = true;
+}
+
+void Init() noexcept
+{
 
 	LPC_SYSCON_SYSAHBCLKCTRL |= (1u << 13) | (1u << 16);
 	LPC_SYSCON_PDRUNCFG &= ~(1u << 4);
 	LPC_IOCON_PIO1_0 = (LPC_IOCON_PIO1_0 & ~0x9Fu) | 0x02u; // AD1, analog mode, no pulls
 	LPC_ADC_CR = (1u << 1) | (2u << 8);
-	ApplyHeater(0.0f);
+	ResetConfiguration();
 
 	SYST_RVR = CoreClock / 1000u - 1u;
 	SYST_CVR = 0;
 	SYST_CSR = 0x07u;
 }
 
-void Tick() noexcept
+static void Tick() noexcept
 {
 	++millisTicks;
 	if (Active() && millisTicks - lastHostHeartbeat > LinkTimeoutMillis)
 	{
+		linkTimeoutLatched = true;
 		SetFault(LpcProtocol::ThermalError::linkTimeout);
 	}
 }
 
-uint32_t Millis() noexcept
+static uint32_t Millis() noexcept
 {
 	return millisTicks;
 }
@@ -452,7 +535,7 @@ void HostHeartbeat() noexcept
 	lastHostHeartbeat = Millis();
 }
 
-void ConfigureThermistor(const uint8_t* payload, size_t length) noexcept
+static void ConfigureThermistor(const uint8_t* payload, size_t length) noexcept
 {
 	if (length != 16)
 	{
@@ -462,10 +545,19 @@ void ConfigureThermistor(const uint8_t* payload, size_t length) noexcept
 	beta = ReadFloat(payload + 4);
 	shC = ReadFloat(payload + 8);
 	seriesR = ReadFloat(payload + 12);
-	if (!(r25 > 0.0f) || !(beta > 0.0f) || !(seriesR > 0.0f))
+	if (!isfinite(r25) || !isfinite(beta) || !isfinite(shC) || !isfinite(seriesR)
+		|| !(r25 > 0.0f) || !(beta > 0.0f) || !(seriesR > 0.0f))
 	{
 		thermistorConfigured = false;
-		error = LpcProtocol::ThermalError::notConfigured;
+		if (Active())
+		{
+			SetFault(LpcProtocol::ThermalError::notConfigured);
+		}
+		else
+		{
+			error = LpcProtocol::ThermalError::notConfigured;
+			statusDirty = true;
+		}
 		return;
 	}
 	shB = 1.0f / beta;
@@ -476,63 +568,118 @@ void ConfigureThermistor(const uint8_t* payload, size_t length) noexcept
 	statusDirty = true;
 }
 
-void ConfigureModelA(const uint8_t* payload, size_t length) noexcept
+static void RejectModelUpdate() noexcept
+{
+	pendingModelParts = 0;
+	if (Active())
+	{
+		SetFault(LpcProtocol::ThermalError::controlFault);
+	}
+}
+
+static void ConfigureModelA(const uint8_t* payload, size_t length) noexcept
 {
 	if (length != 16)
 	{
+		RejectModelUpdate();
 		return;
 	}
-	model.heatingRate = ReadFloat(payload);
-	model.basicCoolingRate = ReadFloat(payload + 4);
-	model.fanCoolingRate = ReadFloat(payload + 8);
-	model.coolingRateExponent = ReadFloat(payload + 12);
-	model.partA = true;
+	pendingModel = model;
+	pendingModel.heatingRate = ReadFloat(payload);
+	pendingModel.basicCoolingRate = ReadFloat(payload + 4);
+	pendingModel.fanCoolingRate = ReadFloat(payload + 8);
+	pendingModel.coolingRateExponent = ReadFloat(payload + 12);
+	pendingModelParts = 0x01u;
 }
 
-void ConfigureModelB(const uint8_t* payload, size_t length) noexcept
+static void ConfigureModelB(const uint8_t* payload, size_t length) noexcept
 {
 	if (length != 16)
 	{
+		RejectModelUpdate();
 		return;
 	}
-	model.deadTime = ReadFloat(payload);
-	model.maxPwm = ReadFloat(payload + 4);
-	model.overrideKp = ReadFloat(payload + 8);
-	model.overrideRecipTi = ReadFloat(payload + 12);
-	model.partB = true;
+	if (pendingModelParts != 0x01u)
+	{
+		RejectModelUpdate();
+		return;
+	}
+	pendingModel.deadTime = ReadFloat(payload);
+	pendingModel.maxPwm = ReadFloat(payload + 4);
+	pendingModel.overrideKp = ReadFloat(payload + 8);
+	pendingModel.overrideRecipTi = ReadFloat(payload + 12);
+	pendingModelParts = 0x03u;
 }
 
-void ConfigureModelC(const uint8_t* payload, size_t length) noexcept
+static void ConfigureModelC(const uint8_t* payload, size_t length) noexcept
 {
 	if (length != 5)
 	{
+		RejectModelUpdate();
 		return;
 	}
-	model.overrideTd = ReadFloat(payload);
+	if (pendingModelParts != 0x03u)
+	{
+		RejectModelUpdate();
+		return;
+	}
+	pendingModel.overrideTd = ReadFloat(payload);
 	const uint8_t flags = payload[4];
-	model.usePid = (flags & 0x01u) != 0;
-	model.inverted = (flags & 0x02u) != 0;
-	model.pidOverridden = (flags & 0x04u) != 0;
-	model.partC = true;
+	if ((flags & ~0x07u) != 0)
+	{
+		RejectModelUpdate();
+		return;
+	}
+	pendingModel.usePid = (flags & 0x01u) != 0;
+	pendingModel.inverted = (flags & 0x02u) != 0;
+	pendingModel.pidOverridden = (flags & 0x04u) != 0;
+	if (ModelReady(pendingModel))
+	{
+		model = pendingModel;
+		modelConfigured = true;
+	}
+	else
+	{
+		RejectModelUpdate();
+		return;
+	}
+	pendingModelParts = 0;
 }
 
-void ConfigureHeater(const uint8_t* payload, size_t length) noexcept
+static void ConfigureHeater(const uint8_t* payload, size_t length) noexcept
 {
 	if (length != 11)
 	{
 		return;
 	}
-	heaterFrequency = ReadU16(payload);
-	upperLimit = static_cast<float>(ReadI16(payload + 2)) * 0.1f;
-	lowerLimit = static_cast<float>(ReadI16(payload + 4)) * 0.1f;
+	const uint16_t newFrequency = ReadU16(payload);
+	const float newUpperLimit = static_cast<float>(ReadI16(payload + 2)) * 0.1f;
+	const float newLowerLimit = static_cast<float>(ReadI16(payload + 4)) * 0.1f;
+	if (newFrequency == 0 || newUpperLimit <= newLowerLimit)
+	{
+		heaterConfigured = false;
+		if (Active())
+		{
+			SetFault(LpcProtocol::ThermalError::controlFault);
+		}
+		else
+		{
+			error = LpcProtocol::ThermalError::notConfigured;
+			statusDirty = true;
+		}
+		return;
+	}
+	heaterFrequency = newFrequency;
+	upperLimit = newUpperLimit;
+	lowerLimit = newLowerLimit;
 	maxTempExcursion = static_cast<float>(ReadU16(payload + 6)) * 0.01f;
 	maxFaultTime = static_cast<float>(ReadU16(payload + 8)) * 0.1f;
 	maxBadReadings = payload[10];
-	heaterConfigured = heaterFrequency != 0;
+	heaterConfigured = true;
 	statusDirty = true;
 }
 
-void Command(const uint8_t* payload, size_t length) noexcept
+static void Command(const uint8_t* payload, size_t length) noexcept
 {
 	if (length != 3)
 	{
@@ -549,20 +696,21 @@ void Command(const uint8_t* payload, size_t length) noexcept
 			state = LpcProtocol::HeaterState::off;
 		}
 		integral = 0.0f;
+		extrusionPwmBoost = 0.0f;
+		extrusionTemperatureBoost = 0.0f;
+		lastExtrusionTemperatureBoost = 0.0f;
 		excursionFaultMillis = 0;
 		heatingFaultMillis = 0;
 		lastPwm = 0.0f;
-		reachedTarget = false;
 		break;
 
 	case LpcProtocol::HeaterCommand::on:
-	case LpcProtocol::HeaterCommand::unsuspend:
-		if (!LinkAlive() || !thermistorConfigured || !heaterConfigured || !ModelReady() || state == LpcProtocol::HeaterState::fault || !SampleTemperature())
+		if (!LinkAlive() || !thermistorConfigured || !heaterConfigured || !modelConfigured || state == LpcProtocol::HeaterState::fault || !SampleTemperature())
 		{
 			if (state != LpcProtocol::HeaterState::fault)
 			{
 				SetFault(!LinkAlive() ? LpcProtocol::ThermalError::linkTimeout
-					: !thermistorConfigured || !heaterConfigured || !ModelReady() ? LpcProtocol::ThermalError::notConfigured
+					: !thermistorConfigured || !heaterConfigured || !modelConfigured ? LpcProtocol::ThermalError::notConfigured
 					: error);
 			}
 			return;
@@ -573,17 +721,8 @@ void Command(const uint8_t* payload, size_t length) noexcept
 			return;
 		}
 		targetTemperature = requestedTarget;
-		state = (temperature + TemperatureCloseEnough < targetTemperature)
-			? LpcProtocol::HeaterState::heating
-			: (temperature > targetTemperature + TemperatureCloseEnough)
-				? LpcProtocol::HeaterState::cooling
-				: LpcProtocol::HeaterState::stable;
-		timeSetHeating = Millis();
-		heatingReferenceMillis = timeSetHeating;
-		heatingReferenceTemperature = temperature;
-		heatingFaultMillis = 0;
-		excursionFaultMillis = 0;
-		reachedTarget = state == LpcProtocol::HeaterState::stable;
+		UpdateHeaterState((targetTemperature + extrusionTemperatureBoost < upperLimit)
+			? targetTemperature + extrusionTemperatureBoost : upperLimit);
 		break;
 
 	case LpcProtocol::HeaterCommand::suspend:
@@ -598,13 +737,16 @@ void Command(const uint8_t* payload, size_t length) noexcept
 	case LpcProtocol::HeaterCommand::resetFault:
 		if (LinkAlive() && SampleTemperature())
 		{
+			linkTimeoutLatched = false;
 			ApplyHeater(0.0f);
 			state = LpcProtocol::HeaterState::off;
 			error = LpcProtocol::ThermalError::none;
 			badReadings = 0;
 			integral = 0.0f;
+			extrusionPwmBoost = 0.0f;
+			extrusionTemperatureBoost = 0.0f;
+			lastExtrusionTemperatureBoost = 0.0f;
 			lastPwm = 0.0f;
-			reachedTarget = false;
 			heatingFaultMillis = 0;
 			excursionFaultMillis = 0;
 		}
@@ -613,15 +755,65 @@ void Command(const uint8_t* payload, size_t length) noexcept
 	statusDirty = true;
 }
 
-void ConfigureFeedForward(const uint8_t* payload, size_t length) noexcept
+static void ConfigureFeedForward(const uint8_t* payload, size_t length) noexcept
 {
 	if (length != 12)
 	{
 		return;
 	}
-	fanPwm = Clamp(ReadFloat(payload), 0.0f, 1.0f);
-	extrusionPwmBoost = ReadFloat(payload + 4);
-	extrusionTemperatureBoost = ReadFloat(payload + 8);
+	const float newFanPwm = ReadFloat(payload);
+	const float newExtrusionPwmBoost = ReadFloat(payload + 4);
+	const float newExtrusionTemperatureBoost = ReadFloat(payload + 8);
+	if (!isfinite(newFanPwm) || !isfinite(newExtrusionPwmBoost) || !isfinite(newExtrusionTemperatureBoost))
+	{
+		SetFault(LpcProtocol::ThermalError::controlFault);
+		return;
+	}
+	const float clampedFanPwm = Clamp(newFanPwm, 0.0f, 1.0f);
+	if (state == LpcProtocol::HeaterState::stable)
+	{
+		float pwmBoost = newExtrusionPwmBoost - extrusionPwmBoost;
+		extrusionPwmBoost = newExtrusionPwmBoost;
+		if (clampedFanPwm != fanPwm)
+		{
+			const float pwmChange = clampedFanPwm - fanPwm;
+			fanPwm = clampedFanPwm;
+			pwmBoost += (targetTemperature - NormalAmbientTemperature) * 0.01f
+				* model.fanCoolingRate * pwmChange / model.heatingRate * FanFeedForwardMultiplier;
+		}
+		integral += pwmBoost;
+	}
+	extrusionTemperatureBoost = newExtrusionTemperatureBoost;
+}
+
+void HandleFrame(const LpcProtocol::Frame& frame) noexcept
+{
+	switch (frame.type)
+	{
+	case LpcProtocol::MessageType::thermistorConfig:
+		ConfigureThermistor(frame.payload, frame.length);
+		break;
+	case LpcProtocol::MessageType::heaterModelA:
+		ConfigureModelA(frame.payload, frame.length);
+		break;
+	case LpcProtocol::MessageType::heaterModelB:
+		ConfigureModelB(frame.payload, frame.length);
+		break;
+	case LpcProtocol::MessageType::heaterModelC:
+		ConfigureModelC(frame.payload, frame.length);
+		break;
+	case LpcProtocol::MessageType::heaterConfig:
+		ConfigureHeater(frame.payload, frame.length);
+		break;
+	case LpcProtocol::MessageType::heaterCommand:
+		Command(frame.payload, frame.length);
+		break;
+	case LpcProtocol::MessageType::heaterFeedForward:
+		ConfigureFeedForward(frame.payload, frame.length);
+		break;
+	default:
+		break;
+	}
 }
 
 void Spin() noexcept

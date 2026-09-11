@@ -2,6 +2,7 @@
 #define PINS_DAVINCIJR_H__
 
 #include <PinDescription.h>
+#include <LpcProtocol.h>
 
 // SAM4E mappings are cross-checked against the current da-vinci-jr-1.0-hacking
 // pinout, component, connector and board documentation. Older conflicting
@@ -297,7 +298,11 @@ constexpr PinDescription PinTable[] =
 
 constexpr size_t NumNamedPins = ARRAY_SIZE(PinTable);
 constexpr size_t NumRealPins = 32 + 32 + 32 + 32 + 6;
-constexpr uint8_t LpcPinIds[] = { 0x27, 0x21, 0x06, 0x2A, 0x04, 0x05, 0x30, 0x31, 0x25, 0x1A, 0x10 };
+constexpr uint8_t LpcPinIds[] = {
+	LpcProtocol::Pins::FilamentRunout, LpcProtocol::Pins::Rotation, LpcProtocol::Pins::HotendFilament,
+	LpcProtocol::Pins::StatusLed, LpcProtocol::Pins::NfcScl, LpcProtocol::Pins::NfcSda, LpcProtocol::Pins::NfcTx,
+	LpcProtocol::Pins::NfcRx, LpcProtocol::Pins::HotendFan, LpcProtocol::Pins::ReflowFan, LpcProtocol::Pins::HotendNtc
+};
 constexpr size_t NumLpcPins = ARRAY_SIZE(LpcPinIds);
 constexpr Pin FirstLpcPin = NumRealPins;
 static_assert(NumNamedPins == NumRealPins + NumLpcPins);
