@@ -106,6 +106,8 @@ CORE_C_INCLUDES = include_flags(
     "CoreN2G/src/SAM4S_4E_E70/asf/common/services/usb/udc",
     "RRFLibraries/src",
 )
+SHARED_CXX_INCLUDES = include_flags("Shared/src")
+
 CORE_CXX_INCLUDES = include_flags(
     "CoreN2G/src",
     "CoreN2G/src/arm/CMSIS/5.4.0/CMSIS/Core/Include",
@@ -168,6 +170,7 @@ RRF_CXX_INCLUDES = include_flags(
     "FreeRTOS/src/include",
     "FreeRTOS/src/portable/GCC/ARM_CM4F",
     "RRFLibraries/src",
+    "Shared/src",
     "CANlib/src",
 )
 
@@ -214,6 +217,13 @@ PROJECTS = (
             includes=CORE_CXX_INCLUDES,
             warnings=("-Werror=return-type", "-Wsuggest-override"),
             stack_usage=True,
+        ),
+    ),
+    Project(
+        "Shared",
+        cxx_flags=cxx_flags(
+            defines=(),
+            includes=SHARED_CXX_INCLUDES,
         ),
     ),
     Project(
@@ -369,7 +379,7 @@ def build_firmware(archives: dict[str, Path]) -> Path:
             *map(str, objects),
             *(
                 str(archives[name])
-                for name in ("CANlib", "CoreN2G", "RRFLibraries", "FreeRTOS")
+                for name in ("CANlib", "Shared", "CoreN2G", "RRFLibraries", "FreeRTOS")
             ),
             "-lsupc++",
             "-Wl,--end-group",
