@@ -60,7 +60,7 @@ static uint8_t badReadings;
 static float r25;
 static float beta;
 static float shC;
-static float seriesR;
+static float pullupR;
 static float shA;
 static float shB;
 static float temperature;
@@ -225,7 +225,9 @@ static bool SampleTemperature() noexcept
 		return false;
 	}
 
-	const float resistance = seriesR * static_cast<float>(lastRawAdc) / static_cast<float>(AdcRange - lastRawAdc);
+	// The hotend NTC is connected from AD1 to ground, with the MCU-side ADC node pulled up.
+	// Therefore Rntc = Rpullup * ADC / (fullScale - ADC).
+	const float resistance = pullupR * static_cast<float>(lastRawAdc) / static_cast<float>(AdcRange - lastRawAdc);
 	const float logResistance = logf(resistance);
 	const float recipT = shA + shB * logResistance + shC * logResistance * logResistance * logResistance;
 	if (!(recipT > 0.0f))
@@ -235,7 +237,7 @@ static bool SampleTemperature() noexcept
 	}
 
 	temperature = (1.0f / recipT) + AbsoluteZero;
-	if (!isfinite(temperature) || (temperature < MinimumConnectedTemperature && resistance > seriesR * 100.0f))
+	if (!isfinite(temperature) || (temperature < MinimumConnectedTemperature && resistance > pullupR * 100.0f))
 	{
 		error = LpcProtocol::ThermalError::openCircuit;
 		return false;
@@ -544,9 +546,9 @@ static void ConfigureThermistor(const uint8_t* payload, size_t length) noexcept
 	r25 = ReadFloat(payload);
 	beta = ReadFloat(payload + 4);
 	shC = ReadFloat(payload + 8);
-	seriesR = ReadFloat(payload + 12);
-	if (!isfinite(r25) || !isfinite(beta) || !isfinite(shC) || !isfinite(seriesR)
-		|| !(r25 > 0.0f) || !(beta > 0.0f) || !(seriesR > 0.0f))
+	pullupR = ReadFloat(payload + 12);
+	if (!isfinite(r25) || !isfinite(beta) || !isfinite(shC) || !isfinite(pullupR)
+		|| !(r25 > 0.0f) || !(beta > 0.0f) || !(pullupR > 0.0f))
 	{
 		thermistorConfigured = false;
 		if (Active())

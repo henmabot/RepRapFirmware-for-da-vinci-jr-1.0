@@ -1,1 +1,1 @@
-; No pause motion is configured until LPC/tool support is added.
+; No additional pause motion is configured.
