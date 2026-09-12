@@ -16,6 +16,7 @@ TEST_PROGRAM = r'''
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <cmath>
 
 using namespace LpcProtocol;
 
@@ -61,12 +62,35 @@ int main()
     RoundTrip(MessageType::thermalStatus, payload, 8);
     RoundTrip(MessageType::thermistorConfig, nullptr, 0);
 
-    assert(DaVinciJrThermistor::ConvertAdc(214) == 250.0f);
-    assert(DaVinciJrThermistor::ConvertAdc(304) == 220.0f);
-    assert(DaVinciJrThermistor::ConvertAdc(856) == 110.0f);
-    assert(DaVinciJrThermistor::ConvertAdc(896) == 100.0f);
-    assert(DaVinciJrThermistor::ConvertAdc(1000) == 45.0f);
-    assert(DaVinciJrThermistor::ConvertAdc(1023) == 10.0f);
+    struct CalibrationPoint { uint16_t raw; float temperature; };
+    static constexpr CalibrationPoint stockTable[] = {
+        {856, 250}, {893, 245}, {943, 240}, {1017, 235}, {1104, 230},
+        {1179, 225}, {1216, 220}, {1290, 215}, {1414, 210}, {1501, 205},
+        {1576, 200}, {1675, 195}, {1762, 190}, {1886, 185}, {1998, 180},
+        {2122, 175}, {2209, 170}, {2321, 165}, {2445, 160}, {2519, 155},
+        {2643, 150}, {2767, 145}, {2829, 140}, {2954, 135}, {3065, 130},
+        {3152, 125}, {3227, 120}, {3376, 115}, {3376, 115}, {3424, 110},
+        {3504, 105}, {3584, 100}, {3648, 95}, {3712, 90}, {3760, 85},
+        {3808, 80}, {3840, 75}, {3888, 70}, {3904, 65}, {3936, 60},
+        {3968, 55}, {3984, 50}, {4000, 45}, {4018, 40}, {4034, 35},
+        {4049, 30}, {4058, 25}, {4068, 20}, {4073, 15}, {4077, 10},
+    };
+    for (const CalibrationPoint& point : stockTable)
+    {
+        assert(std::fabs(DaVinciJrThermistor::ConvertScaledRaw(point.raw) - point.temperature) <= 4.1f);
+    }
+
+    // The fitted physical curve is continuous rather than limited to the
+    // stock table's five-degree steps, and it remains usable outside 10..250C.
+    assert(DaVinciJrThermistor::ConvertAdc(100) > 300.0f);
+    assert(DaVinciJrThermistor::ConvertAdc(1022) < 0.0f);
+    float previous = DaVinciJrThermistor::ConvertAdc(1);
+    for (uint16_t raw = 2; raw < 1023; ++raw)
+    {
+        const float current = DaVinciJrThermistor::ConvertAdc(raw);
+        assert(current < previous);
+        previous = current;
+    }
 
     uint8_t encoded[MaxEncodedFrame] = {};
     size_t length = Encode(MessageType::gpioWrite, payload, 2, encoded);
