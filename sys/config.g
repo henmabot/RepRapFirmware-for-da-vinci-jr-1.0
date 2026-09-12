@@ -5,10 +5,10 @@ M550 P"Da Vinci Jr 1.0"
 ; Driver 0=X, 1=Y, 2=Z, 3=E1.
 M584 X0 Y1 Z2 E3
 
-; The stock TB62269 direction inputs are high for clockwise rotation.
-; Y is intentionally reversed so positive Y uses the opposite motor direction.
-M569 P0 S1
-M569 P1 S0
+; Keep X/Y physical motion aligned with the previous RRF coordinate system while
+; retaining the recovered stock high-end homing coordinates below.
+M569 P0 S0
+M569 P1 S1
 M569 P2 S1
 M569 P3 S1
 
