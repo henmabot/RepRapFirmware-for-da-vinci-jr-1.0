@@ -7,7 +7,7 @@
 namespace LpcProtocol
 {
 
-constexpr uint8_t Version = 3;
+constexpr uint8_t Version = 4;
 constexpr uint8_t SyncByte = 0xA5;
 constexpr size_t MaxPayload = 16;
 constexpr size_t MaxEncodedFrame = MaxPayload + 4;

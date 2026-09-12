@@ -22,7 +22,6 @@ static uint32_t lastPongReceived;
 static uint32_t connectionGeneration;
 static Mutex transmitMutex;
 
-static uint8_t thermistorPayload[16];
 static uint8_t modelAPayload[16];
 static uint8_t modelBPayload[16];
 static uint8_t modelCPayload[5];
@@ -136,7 +135,7 @@ static void ReplayConfiguration() noexcept
 			}
 		}
 	}
-	if (thermistorConfigured) { Send(LpcProtocol::MessageType::thermistorConfig, thermistorPayload, sizeof(thermistorPayload)); }
+	if (thermistorConfigured) { Send(LpcProtocol::MessageType::thermistorConfig, nullptr, 0); }
 	if (modelConfigured)
 	{
 		Send(LpcProtocol::MessageType::heaterModelA, modelAPayload, sizeof(modelAPayload));
@@ -410,18 +409,14 @@ void WritePwm(Pin pin, float duty, uint16_t frequency) noexcept
 	}
 }
 
-void ConfigureThermistor(unsigned int sensorNumber, float r25, float beta, float coefficientC, float seriesResistance) noexcept
+void ConfigureThermistor(unsigned int sensorNumber) noexcept
 {
 	MutexLocker lock(transmitMutex);
-	PutFloat(thermistorPayload, r25);
-	PutFloat(thermistorPayload + 4, beta);
-	PutFloat(thermistorPayload + 8, coefficientC);
-	PutFloat(thermistorPayload + 12, seriesResistance);
 	thermistorSensorNumber = static_cast<int>(sensorNumber);
 	thermistorConfigured = true;
 	if (IsOnline())
 	{
-		Send(LpcProtocol::MessageType::thermistorConfig, thermistorPayload, sizeof(thermistorPayload));
+		Send(LpcProtocol::MessageType::thermistorConfig, nullptr, 0);
 	}
 }
 

@@ -35,9 +35,9 @@ M574 Z1 S1 P"zstop"
 
 ; Verified LPC1115 peripherals only; NFC is intentionally not exposed.
 ; PIO1_0 = hotend NTC, PIO0_9 = heater, PIO2_5 = hotend fan, PIO1_10 = reflow fan.
-; The hotend NTC is 100K, connected from the ADC node to ground with the MCU side pulled up.
-; B4267/R4700 retain the existing Da Vinci Jr conversion profile until measured directly.
-M308 S0 P"lpc.ntc" Y"thermistor" T100000 B4267 C0 R4700
+; The hotend NTC uses the exact 50-entry ADC/temperature lookup table recovered
+; from the stock SAM4E8E ROM instead of an estimated beta/pull-up model.
+M308 S0 Y"davinci-ntc"
 M950 H0 C"lpc.heater" T0 Q250
 M143 H0 S265
 

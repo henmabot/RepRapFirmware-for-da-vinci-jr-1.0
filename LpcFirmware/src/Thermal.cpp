@@ -3,6 +3,7 @@
 #include "Gpio.h"
 #include "Lpc1115.h"
 #include "Pwm.h"
+#include <DaVinciJrThermistor.h>
 
 #include <math.h>
 #include <string.h>
@@ -14,7 +15,6 @@ constexpr uint32_t CoreClock = 12000000u;
 constexpr uint32_t SampleIntervalMillis = 250u;
 constexpr uint32_t LinkTimeoutMillis = 2500u;
 constexpr float AbsoluteZero = -273.15f;
-constexpr float MinimumConnectedTemperature = -5.0f;
 constexpr float NormalAmbientTemperature = 25.0f;
 constexpr float TemperatureCloseEnough = 1.5f;
 constexpr float MaxAmbientTemperature = 45.0f;
@@ -57,12 +57,6 @@ static uint16_t lastRawAdc;
 static uint16_t heaterFrequency = 250;
 static uint8_t maxBadReadings = 3;
 static uint8_t badReadings;
-static float r25;
-static float beta;
-static float shC;
-static float pullupR;
-static float shA;
-static float shB;
 static float temperature;
 static float targetTemperature;
 static float upperLimit;
@@ -225,23 +219,13 @@ static bool SampleTemperature() noexcept
 		return false;
 	}
 
-	// The hotend NTC is connected from AD1 to ground, with the MCU-side ADC node pulled up.
-	// Therefore Rntc = Rpullup * ADC / (fullScale - ADC).
-	const float resistance = pullupR * static_cast<float>(lastRawAdc) / static_cast<float>(AdcRange - lastRawAdc);
-	const float logResistance = logf(resistance);
-	const float recipT = shA + shB * logResistance + shC * logResistance * logResistance * logResistance;
-	if (!(recipT > 0.0f))
+	if (lastRawAdc >= AdcRange - 1u)
 	{
 		error = LpcProtocol::ThermalError::openCircuit;
 		return false;
 	}
 
-	temperature = (1.0f / recipT) + AbsoluteZero;
-	if (!isfinite(temperature) || (temperature < MinimumConnectedTemperature && resistance > pullupR * 100.0f))
-	{
-		error = LpcProtocol::ThermalError::openCircuit;
-		return false;
-	}
+	temperature = DaVinciJrThermistor::ConvertAdc(lastRawAdc);
 
 	error = LpcProtocol::ThermalError::none;
 	return true;
@@ -539,32 +523,11 @@ void HostHeartbeat() noexcept
 
 static void ConfigureThermistor(const uint8_t* payload, size_t length) noexcept
 {
-	if (length != 16)
+	(void)payload;
+	if (length != 0)
 	{
 		return;
 	}
-	r25 = ReadFloat(payload);
-	beta = ReadFloat(payload + 4);
-	shC = ReadFloat(payload + 8);
-	pullupR = ReadFloat(payload + 12);
-	if (!isfinite(r25) || !isfinite(beta) || !isfinite(shC) || !isfinite(pullupR)
-		|| !(r25 > 0.0f) || !(beta > 0.0f) || !(pullupR > 0.0f))
-	{
-		thermistorConfigured = false;
-		if (Active())
-		{
-			SetFault(LpcProtocol::ThermalError::notConfigured);
-		}
-		else
-		{
-			error = LpcProtocol::ThermalError::notConfigured;
-			statusDirty = true;
-		}
-		return;
-	}
-	shB = 1.0f / beta;
-	const float lnR25 = logf(r25);
-	shA = 1.0f / (25.0f - AbsoluteZero) - shB * lnR25 - shC * lnR25 * lnR25 * lnR25;
 	thermistorConfigured = true;
 	badReadings = 0;
 	statusDirty = true;

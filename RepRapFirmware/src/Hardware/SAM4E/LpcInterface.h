@@ -29,7 +29,7 @@ uint16_t ReadAnalog(Pin pin) noexcept;
 void WritePin(Pin pin, bool high) noexcept;
 void WritePwm(Pin pin, float duty, uint16_t frequency) noexcept;
 
-void ConfigureThermistor(unsigned int sensorNumber, float r25, float beta, float coefficientC, float seriesResistance) noexcept;
+void ConfigureThermistor(unsigned int sensorNumber) noexcept;
 void UnregisterThermistor(unsigned int sensorNumber) noexcept;
 bool IsThermistorSensor(unsigned int sensorNumber) noexcept;
 void ConfigureHeaterModel(const FopDt& model) noexcept;

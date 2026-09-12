@@ -10,6 +10,7 @@ SOURCE = BUILD_DIR / "main.cpp"
 BINARY = BUILD_DIR / "protocol-selftest"
 
 TEST_PROGRAM = r'''
+#include <DaVinciJrThermistor.h>
 #include <LpcProtocol.h>
 
 #include <cassert>
@@ -58,7 +59,14 @@ int main()
     RoundTrip(MessageType::gpioState, payload, 2);
     RoundTrip(MessageType::pwmWrite, payload, 5);
     RoundTrip(MessageType::thermalStatus, payload, 8);
-    RoundTrip(MessageType::thermistorConfig, payload, MaxPayload);
+    RoundTrip(MessageType::thermistorConfig, nullptr, 0);
+
+    assert(DaVinciJrThermistor::ConvertAdc(214) == 250.0f);
+    assert(DaVinciJrThermistor::ConvertAdc(304) == 220.0f);
+    assert(DaVinciJrThermistor::ConvertAdc(856) == 110.0f);
+    assert(DaVinciJrThermistor::ConvertAdc(896) == 100.0f);
+    assert(DaVinciJrThermistor::ConvertAdc(1000) == 45.0f);
+    assert(DaVinciJrThermistor::ConvertAdc(1023) == 10.0f);
 
     uint8_t encoded[MaxEncodedFrame] = {};
     size_t length = Encode(MessageType::gpioWrite, payload, 2, encoded);
@@ -106,6 +114,7 @@ def main() -> int:
             "-I",
             str(ROOT / "Shared" / "src"),
             str(SOURCE),
+            str(ROOT / "Shared" / "src" / "DaVinciJrThermistor.cpp"),
             str(ROOT / "Shared" / "src" / "LpcProtocol.cpp"),
             "-o",
             str(BINARY),
