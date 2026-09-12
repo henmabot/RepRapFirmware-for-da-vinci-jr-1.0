@@ -12,24 +12,25 @@ M569 P1 S0
 M569 P2 S1
 M569 P3 S1
 
-; Stock mechanics. X/Y/E use 3200 microsteps/revolution. Z uses 6400.
-; The TB62269 microstep mode is hardware-set, so there is intentionally no M350.
-M92 X80 Y80 Z2560 E145.5
+; Stock ROM calibration. The TB62269 microstep mode is hardware-set, so there is
+; intentionally no M350 command.
+M92 X80 Y80 Z2560 E96
 
-; Conservative bring-up limits, below the printer's published maximum travel speed.
-M203 S1 X60 Y60 Z5 E20
-M201 X300 Y300 Z30 E100
-M566 X300 Y300 Z30 E300
+; Recovered stock planner limits. M203 S1 uses mm/s; M566 uses mm/min.
+M203 S1 X1500 Y1500 Z5 E150
+M201 X9000 Y9000 Z5 E10000
+M204 P3000 T3000
+M566 X1200 Y1200 Z24 E300
 
-; Measured Da Vinci Jr travel limits.
-M208 X-14:165 Y-15:155 Z0:170
+; Recovered stock Cartesian clamps and G28 home coordinates: X169, Y175, Z0.
+M208 X-1:169 Y-5:175 Z0:155
 
 ; Require homing before ordinary axis motion and enforce the configured limits.
 M564 H1 S1
 
-; The optical home sensors are high when triggered. X/Z are low-end; Y is high-end.
-M574 X1 S1 P"xstop"
-M574 Y1 S1 P"ystop"
+; X and Y home at the high end of their recovered travel ranges; Z homes low.
+M574 X2 S1 P"xstop"
+M574 Y2 S1 P"ystop"
 M574 Z1 S1 P"zstop"
 
 ; Verified LPC1115 peripherals only; NFC is intentionally not exposed.
