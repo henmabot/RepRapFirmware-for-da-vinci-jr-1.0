@@ -14,12 +14,13 @@
 #define DEFAULT_BOARD_TYPE      BoardType::DaVinciJr_10
 #define IAP_FIRMWARE_FILE       "DaVinciJrFirmware.bin"
 #define IAP_UPDATE_FILE         "DaVinciJrIap.bin"
+#define WIFI_FIRMWARE_FILE      "DuetWiFiServer.bin"
 
 constexpr uint32_t IAP_IMAGE_START = 0x20018000;
 
 // Only the SAM4E-connected hardware mapped for this board is enabled here.
 #define HAS_LWIP_NETWORKING     0
-#define HAS_WIFI_NETWORKING     0
+#define HAS_WIFI_NETWORKING     1
 #define HAS_W5500_NETWORKING    0
 #define HAS_SBC_INTERFACE       0
 #define HAS_MASS_STORAGE        1
@@ -79,6 +80,34 @@ constexpr Pin LpcUartRxPin = PortAPin(5);
 constexpr Pin LpcUartTxPin = PortAPin(6);
 constexpr GpioPinFunction LpcUartPinFunction = GpioPinFunction::C;
 
+// Optional ESP8266 debug/firmware-upload UART. UART1 is reserved for the
+// LPC1115, so WiFi uses the otherwise-free UART0 header pins.
+constexpr Pin APIN_SerialWiFi_RXD = PortAPin(9);
+constexpr Pin APIN_SerialWiFi_TXD = PortAPin(10);
+constexpr GpioPinFunction SerialWiFiPeriphMode = GpioPinFunction::A;
+
+// Duet WiFi-compatible ESP8266 SPI transport. The SAM4E is the SPI slave, so
+// hardware NSS must use NPCS0 (PA11). PB2 is NPCS2 and cannot act as NSS in
+// slave mode; ESP GPIO15/CS therefore needs a jumper to PA11 for this transport.
+#define ESP_SPI                 SPI
+#define ESP_SPI_INTERFACE_ID    ID_SPI
+#define ESP_SPI_IRQn            SPI_IRQn
+#define ESP_SPI_HANDLER         SPI_Handler
+constexpr uint32_t DMA_HW_ID_SPI_TX = 1;
+constexpr uint32_t DMA_HW_ID_SPI_RX = 2;
+constexpr Pin APIN_ESP_SPI_MISO = PortAPin(12);
+constexpr Pin APIN_ESP_SPI_MOSI = PortAPin(13);
+constexpr Pin APIN_ESP_SPI_SCK = PortAPin(14);
+constexpr Pin APIN_ESP_SPI_SS0 = PortAPin(11);
+constexpr GpioPinFunction SPIPeriphMode = GpioPinFunction::A;
+constexpr Pin EspResetPin = PortCPin(24);
+constexpr Pin EspEnablePin = PortBPin(14);
+constexpr Pin EspDataReadyPin = PortEPin(3);
+constexpr Pin SamTfrReadyPin = PortAPin(26);
+constexpr Pin SamCsPin = APIN_ESP_SPI_SS0;
+constexpr DmaChannel DmacChanWiFiTx = 1;
+constexpr DmaChannel DmacChanWiFiRx = 2;
+
 // LPC1115 ROM-ISP control. PC13 is shared with the otherwise-unused stock LCD
 // enable net; PC15 drives the LPC1115 active-low reset input.
 constexpr Pin LpcIspPin = PortCPin(13);
@@ -105,7 +134,7 @@ constexpr float DefaultThermistorSeriesR = 4700.0;
 constexpr Pin DiagPin = NoPin;
 constexpr bool DiagOnPolarity = true;
 
-// SD card: HSMCI four-bit bus on PA26..PA31, card detect on PA25.
+// SD card: one-bit HSMCI on CMD/CLK/DAT0. PA26 is reserved for WiFi GPIO4.
 constexpr size_t NumSdCards = 1;
 constexpr Pin SdCardDetectPins[NumSdCards] = { PortAPin(25) };
 // The socket grounds CD when no card is inserted; with the pull-up enabled,
@@ -116,9 +145,7 @@ constexpr Pin SdSpiCSPins[1] = { NoPin };
 constexpr IRQn SdhcIRQn = HSMCI_IRQn;
 constexpr uint32_t ExpectedSdCardSpeed = 20000000;
 constexpr Pin HsmciClockPin = PortAPin(29);
-constexpr Pin HsmciOtherPins[] = {
-	PortAPin(28), PortAPin(30), PortAPin(31), PortAPin(26), PortAPin(27)
-};
+constexpr Pin HsmciOtherPins[] = { PortAPin(28), PortAPin(30) };
 constexpr GpioPinFunction HsmciPinsFunction = GpioPinFunction::C;
 // Step pulse timer. All four step pins are on PIOC.
 #define STEP_TC          (TC0)

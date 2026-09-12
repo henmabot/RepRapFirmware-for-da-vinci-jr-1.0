@@ -18,7 +18,7 @@
 const size_t MaxNetworkInterfaces = 0;
 #elif defined(DUET3_MB6HC) && HAS_WIFI_NETWORKING
 const size_t MaxNetworkInterfaces = 2;
-#elif defined(DUET3_MB6HC) || defined(DUET3_MB6XD) || defined(DUET_NG) || defined(DUET_M) || defined(PCCB) || defined(DUET3MINI)
+#elif defined(DUET3_MB6HC) || defined(DUET3_MB6XD) || defined(DUET_NG) || defined(DUET_M) || defined(PCCB) || defined(DUET3MINI) || defined(DA_VINCI_JR)
 const size_t MaxNetworkInterfaces = 1;
 #else
 # error Wrong Network.h file included
@@ -29,7 +29,7 @@ const size_t NumHttpResponders = 6;		// the number of concurrent HTTP requests w
 const size_t NumTelnetResponders = 2;	// the number of concurrent Telnet sessions we support
 #else
 // Limit the number of HTTP responders to 4 because they take around 2.5K of memory each
-# if defined(DUET_NG) || defined(DUET_M)
+# if defined(DUET_NG) || defined(DUET_M) || defined(DA_VINCI_JR)
 // We now support only 3 HTTP sockets on Duet 2 Ethernet, so it's probably not worth supporting 4 responders and we would rather have the extra RAM
 const size_t NumHttpResponders = 3;		// the number of concurrent HTTP requests we can process
 # else
