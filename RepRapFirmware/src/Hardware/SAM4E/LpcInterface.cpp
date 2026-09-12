@@ -240,6 +240,21 @@ void Init() noexcept
 	SendPing();
 }
 
+void PrepareForFirmwareUpdate() noexcept
+{
+	SetOffline();
+	LpcProtocol::Reset(decoder);
+	lpcUart.ClearReceiveBuffer();
+}
+
+void FirmwareUpdateFinished() noexcept
+{
+	SetOffline();
+	LpcProtocol::Reset(decoder);
+	lpcUart.ClearReceiveBuffer();
+	lastPingSent = millis();
+}
+
 void Spin() noexcept
 {
 	LpcProtocol::Frame frame;
