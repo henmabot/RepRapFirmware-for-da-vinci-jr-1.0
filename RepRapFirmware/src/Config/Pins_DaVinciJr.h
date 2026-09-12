@@ -86,9 +86,9 @@ constexpr Pin APIN_SerialWiFi_RXD = PortAPin(9);
 constexpr Pin APIN_SerialWiFi_TXD = PortAPin(10);
 constexpr GpioPinFunction SerialWiFiPeriphMode = GpioPinFunction::A;
 
-// Duet WiFi-compatible ESP8266 SPI transport. The SAM4E is the SPI slave, so
-// hardware NSS must use NPCS0 (PA11). PB2 is NPCS2 and cannot act as NSS in
-// slave mode; ESP GPIO15/CS therefore needs a jumper to PA11 for this transport.
+// Duet WiFi-compatible ESP8266 SPI transport. ESP GPIO15/CS is wired to PB2.
+// The SAM4E SPI slave can only use NPCS0 as hardware NSS, so PB2 must also be
+// bridged to PA11 after the onboard SPI flash has been isolated from that net.
 #define ESP_SPI                 SPI
 #define ESP_SPI_INTERFACE_ID    ID_SPI
 #define ESP_SPI_IRQn            SPI_IRQn
@@ -104,7 +104,7 @@ constexpr Pin EspResetPin = PortCPin(24);
 constexpr Pin EspEnablePin = PortBPin(14);
 constexpr Pin EspDataReadyPin = PortEPin(3);
 constexpr Pin SamTfrReadyPin = PortAPin(26);
-constexpr Pin SamCsPin = APIN_ESP_SPI_SS0;
+constexpr Pin SamCsPin = PortBPin(2);
 constexpr DmaChannel DmacChanWiFiTx = 1;
 constexpr DmaChannel DmacChanWiFiRx = 2;
 
