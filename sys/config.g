@@ -41,10 +41,18 @@ M308 S0 Y"davinci-ntc"
 M950 H0 C"lpc.heater" T0 Q250
 M143 H0 S265
 
+; Stock firmware switches the LPC fan output group on above 45C, off below 40C,
+; and holds the previous state in between. Configure both verified fan outputs
+; thermostatically to reproduce that behavior.
 M950 F0 C"lpc.fan" Q250
-M106 P0 C"Hotend fan" S0
+M106 P0 C"Hotend fan" H0 T40:45
 M950 F1 C"lpc.reflowfan" Q250
-M106 P1 C"Reflow fan" S0
+M106 P1 C"Reflow fan" H0 T40:45
+
+; The hotend IR filament sensor is verified active-low. Its pin alias performs
+; that electrical inversion, so P1 reports filament present when the logical
+; input is high. Check it for all extrusion, including non-SD jobs.
+M591 D0 P1 C"lpc.filament" S2
 
 ; Declaring heater 0 as the tool heater enables RRF's default hotend model.
 ; Neither verified fan is assumed to be the slicer's part-cooling fan.
