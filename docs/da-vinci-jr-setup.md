@@ -19,24 +19,24 @@ The firmware uses the Duet WiFi SPI protocol with these SAM4E connections:
 | PC24 | RST | ESP reset |
 | PB14 | ENABLE | ESP enable |
 
-Two board-specific conflicts require physical changes.
+Two board-specific conflicts need attention before modifying hardware.
 
-First, the SAM4E SPI peripheral can only use NPCS0 as slave-select while it is in slave mode. PB2 is NPCS2, so it cannot directly terminate Duet WiFi SPI transfers. The firmware therefore keeps PB2 as the logical ESP GPIO15/CS signal, but the same signal must also reach PA11/NPCS0. Bridge PB2 to PA11.
+First, the SAM4E SPI peripheral can only use NPCS0 as slave-select while it is in slave mode. PB2 is NPCS2, so it cannot directly end Duet WiFi SPI transfers. The firmware keeps PB2 as the logical ESP GPIO15/CS signal, while hardware NSS must reach PA11/NPCS0. A PB2-to-PA11 bridge is the proposed solution. Treat this bridge as experimental until the PA11 net has been traced on the target board.
 
-The board reverse-engineering maps PA11 to the onboard MX25L3206E flash chip-select and PA12 through PA14 to the same flash bus. Do not bridge PB2 to PA11 while the flash can still respond to CS. Isolate the flash CS from PA11 and hold it inactive/high. Leave the flash itself in place. Once its CS is permanently inactive, sharing PA12 through PA14 is safe and RepRapFirmware does not use that flash.
+Current reverse-engineering tentatively labels PA11 as the onboard MX25L3206E flash chip-select, but the hardware notes still mark that trace unresolved. Do not make the PB2-to-PA11 bridge on that assumption alone. Determine the PA11 net first. If PA11 is the flash CS, isolate that CS and hold the flash inactive/high before bridging. PA12 through PA14 already have traced connections to the shared SPI data/clock lines used by the proposed ESP wiring.
 
 Second, PA26 is normally SD DAT2. This port switches the SD socket to one-bit HSMCI and frees PA26 for WiFi. SD remains available through CMD, CLK, and DAT0 on PA28, PA29, and PA30.
 
 The traced board also assigns PC24 and PB14 to the stock right/left laser nets. This configuration dedicates those pins to ESP reset and enable, so the laser functions are unavailable at the same time.
 
-### Optional ESP UART
+### Proposed ESP UART
 
-Normal networking only needs the SPI/control wiring above. The firmware reserves UART0 for optional ESP debug output and ESP firmware upload:
+Normal networking only needs the preceding SPI/control wiring. This port deliberately does not configure an ESP UART because current hardware notes leave the PA9/PA10 header mapping unresolved. After those connections are traced, UART0 can provide ESP debug output and firmware upload:
 
-- PA9 is the SAM UART0 RX pin and must connect to ESP TX.
-- PA10 is the SAM UART0 TX pin and must connect to ESP RX.
+- PA9 can serve as the SAM UART0 RX connection to ESP TX.
+- PA10 can serve as the SAM UART0 TX connection to ESP RX.
 
-Without these two optional UART wires, the Duet WiFi network transport still works, but `M997 S1` cannot upload `DuetWiFiServer.bin` to the ESP from the SAM.
+The current firmware leaves those pins untouched and rejects `M997 S1` ESP firmware upload. SPI networking remains available without this UART.
 
 ### Other LPC inputs
 

@@ -82,8 +82,9 @@ constexpr Pin LpcUartTxPin = PortAPin(6);
 constexpr GpioPinFunction LpcUartPinFunction = GpioPinFunction::C;
 
 // Duet WiFi-compatible ESP8266 SPI transport. ESP GPIO15/CS is wired to PB2.
-// The SAM4E SPI slave can only use NPCS0 as hardware NSS, so PB2 must also be
-// bridged to PA11 after the onboard SPI flash has been isolated from that net.
+// SAM4E slave-mode hardware NSS must reach PA11/NPCS0. A PB2-to-PA11 bridge is
+// therefore required by this design, but PA11's board-level flash-CS mapping
+// remains unverified and must be confirmed before making that hardware change.
 #define ESP_SPI                 SPI
 #define ESP_SPI_INTERFACE_ID    ID_SPI
 #define ESP_SPI_IRQn            SPI_IRQn
