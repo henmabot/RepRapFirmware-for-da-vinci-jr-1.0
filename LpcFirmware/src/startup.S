@@ -13,7 +13,7 @@ lpc_vectors:
 	.word 0
 	.word 0
 	.word 0
-	.word 0
+	.word __vector_checksum
 	.word 0
 	.word 0
 	.word 0
