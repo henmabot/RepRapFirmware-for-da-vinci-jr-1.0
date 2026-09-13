@@ -35,8 +35,8 @@ M574 Z1 S1 P"zstop"
 
 ; Verified LPC1115 peripherals only; NFC is intentionally not exposed.
 ; PIO1_0 = hotend NTC, PIO0_9 = heater, PIO2_5 = hotend fan, PIO1_10 = reflow fan.
-; The hotend NTC curve is fitted from the 50-point stock SAM4E8E ROM table.
-; The continuous model avoids the stock 5C steps and 10..250C range clamp.
+; The hotend NTC conversion interpolates the 50-point stock SAM4E8E ROM table.
+; Edge extrapolation removes the stock 10..250C range clamp.
 M308 S0 Y"davinci-ntc"
 M950 H0 C"lpc.heater" T0 Q250
 M143 H0 S265

@@ -78,11 +78,19 @@ int main()
     for (const CalibrationPoint& point : stockTable)
     {
         const uint16_t adc = static_cast<uint16_t>((point.raw + 2u) / 4u);
-        assert(std::fabs(DaVinciJrThermistor::ConvertAdc(adc) - point.temperature) <= 4.5f);
+        // The stock table is 12-bit-scaled while the physical LPC ADC is only
+        // 10-bit, so nearest-ADC quantization is the only permitted error.
+        assert(std::fabs(DaVinciJrThermistor::ConvertAdc(adc) - point.temperature) <= 1.25f);
     }
 
-    // The fitted physical curve is continuous rather than limited to the
-    // stock table's five-degree steps, and it remains usable outside 10..250C.
+    // These stock points are exactly representable by the 10-bit ADC and must
+    // therefore remain exact after interpolation.
+    assert(std::fabs(DaVinciJrThermistor::ConvertAdc(1000) - 45.0f) < 0.001f);
+    assert(std::fabs(DaVinciJrThermistor::ConvertAdc(996) - 50.0f) < 0.001f);
+    assert(std::fabs(DaVinciJrThermistor::ConvertAdc(992) - 55.0f) < 0.001f);
+
+    // Interpolation is continuous rather than limited to the stock table's
+    // five-degree entries, and edge extrapolation extends beyond 10..250C.
     assert(DaVinciJrThermistor::ConvertAdc(100) > 300.0f);
     assert(DaVinciJrThermistor::ConvertAdc(1022) < 0.0f);
     float previous = DaVinciJrThermistor::ConvertAdc(1);
