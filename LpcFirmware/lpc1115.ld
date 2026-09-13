@@ -15,13 +15,6 @@ SECTIONS
 		KEEP(*(.isr_vector))
 	} > FLASH
 
-	.crp 0x000002FC :
-	{
-		KEEP(*(.crp))
-	} > FLASH
-
-	ASSERT(SIZEOF(.crp) == 4, "LPC1115 CRP word must be exactly 4 bytes")
-
 	.text :
 	{
 		*(.text*)
