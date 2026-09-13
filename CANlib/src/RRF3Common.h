@@ -69,7 +69,7 @@ constexpr float DefaultHotEndTemperatureLimit = 285.0;	// Celsius - E3D say to t
 constexpr float DefaultBedTemperatureLimit = 125.0;		// Celsius
 constexpr float DefaultHotEndFanTemperature = 45.0;		// Temperature at which a thermostatic hot end fan comes on
 #if defined(DA_VINCI_JR)
-constexpr float ThermostatHysteresis = 5.0;				// Stock Da Vinci Jr fans switch on at 45C and off at 40C
+constexpr float ThermostatHysteresis = 5.0;				// Stock Da Vinci Jr fans switch on above 45C and off below 40C
 #else
 constexpr float ThermostatHysteresis = 1.0;				// How much hysteresis we use to prevent noise turning fans on/off too often
 #endif
