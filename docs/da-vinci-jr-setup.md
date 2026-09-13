@@ -41,22 +41,3 @@ The current firmware leaves those pins untouched and rejects `M997 S1` ESP firmw
 ### Other LPC inputs
 
 The traced LPC mapping also exposes `lpc.filament_runout` (PIO2_7), `lpc.rotation` (PIO2_1), and `lpc.statusled` (PIO2_10). The default printer configuration leaves them unused. The recovered stock firmware proves the runout level and rotation-edge sources. It does not yet prove the active polarity and print-fault semantics needed to configure them safely in RepRapFirmware. The default enables the hotend IR filament sensor because board tracing independently proves its active-low electrical behavior.
-
-## Proposed LPC1115 firmware update path
-
-This PR does not implement LPC1115 firmware updating. SWD remains the supported programming path for the LPC1115. The traced board wiring does, however, provide the signals needed for a future SAM4E-hosted UART ISP updater:
-
-| SAM4E | LPC1115 | Purpose |
-| --- | --- | --- |
-| PC15 | PIO0_0 | Reset |
-| PC13 | PIO0_1 | ISP entry strap |
-| PA5 UART1 RX | PIO1_7 UART TX | LPC to SAM data |
-| PA6 UART1 TX | PIO1_6 UART RX | SAM to LPC data |
-
-A future implementation could assign the LPC1115 to an additional `M997` module, for example `M997 S2`. RepRapFirmware would first switch off heaters and drives, validate the uploaded LPC image, and temporarily reserve the SAM-to-LPC UART. The SAM could then hold PIO0_1 low while resetting PIO0_0 to enter the LPC1115 ROM UART ISP bootloader.
-
-The proposed updater should use the ROM ISP synchronization, unlock, and part-ID flow; program through RAM in supported blocks; and verify every programmed block. It should program sector zero last, with the vector/checksum block at address zero last of all, so interrupted updates preferentially remain recoverable through ROM ISP instead of booting a partial application.
-
-Image validation should reject invalid Cortex-M vector tables and LPC Code Read Protection magic values at flash offset `0x2FC`. The LPC build should also explicitly reserve a safe CRP word before this proposal is implemented.
-
-With Duet WiFi present, WiFi could be the user-facing file transport: upload the LPC image to the SAM and request the proposed update from the web console. The actual SAM-to-LPC programming transport would still be UART ROM ISP. SWD should remain available as the lowest-level recovery path.
