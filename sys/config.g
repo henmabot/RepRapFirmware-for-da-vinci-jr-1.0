@@ -35,8 +35,8 @@ M574 Z1 S1 P"zstop"
 
 ; Verified LPC1115 peripherals only; NFC is intentionally not exposed.
 ; PIO1_0 = hotend NTC, PIO0_9 = heater, PIO2_5 = hotend fan, PIO1_10 = reflow fan.
-; The hotend NTC uses the exact 50-entry ADC/temperature lookup table recovered
-; from the stock SAM4E8E ROM instead of an estimated beta/pull-up model.
+; The hotend NTC curve is fitted from the 50-point stock SAM4E8E ROM table.
+; The continuous model avoids the stock 5C steps and 10..250C range clamp.
 M308 S0 Y"davinci-ntc"
 M950 H0 C"lpc.heater" T0 Q250
 M143 H0 S265
@@ -57,3 +57,7 @@ M591 D0 P1 C"lpc.filament" S2
 ; Declaring heater 0 as the tool heater enables RRF's default hotend model.
 ; Neither verified fan is assumed to be the slicer's part-cooling fan.
 M563 P0 D0 H0 F-1
+
+; Start the Duet WiFi interface. Configure credentials with M587 before use;
+; HTTP is enabled by default by RepRapFirmware's network interface.
+M552 S1
