@@ -38,6 +38,11 @@ Normal networking only needs the SPI/control wiring above. The firmware reserves
 
 Without these two optional UART wires, the Duet WiFi network transport still works, but `M997 S1` cannot upload `DuetWiFiServer.bin` to the ESP from the SAM.
 
+### Other LPC inputs
+
+The verified LPC mapping also exposes `lpc.filament_runout` (PIO2_7), `lpc.rotation` (PIO2_1), and `lpc.statusled` (PIO2_10). They are intentionally not enabled by the default printer configuration. The recovered stock firmware proves the runout level and rotation-edge sources, but it does not yet prove the active polarity and print-fault semantics needed to configure them safely in RepRapFirmware. The hotend IR filament sensor is enabled because its active-low electrical behavior is independently traced.
+
+## LPC1115 firmware updates without SWD
 ## LPC1115 firmware updates without SWD
 
 The stock board already provides all signals needed to enter the LPC1115 ROM ISP bootloader:
