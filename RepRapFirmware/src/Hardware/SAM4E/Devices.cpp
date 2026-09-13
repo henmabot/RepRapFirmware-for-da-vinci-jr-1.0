@@ -12,7 +12,7 @@
 
 AsyncSerial lpcUart(UART1, UART1_IRQn, ID_UART1, 256, 256,
 	[](AsyncSerial*) noexcept { }, [](AsyncSerial*) noexcept { });
-#if HAS_WIFI_NETWORKING && (!defined(HAS_WIFI_UART) || HAS_WIFI_UART)
+#if HAS_WIFI_NETWORKING && HAS_WIFI_UART
 AsyncSerial serialWiFi(UART0, UART0_IRQn, ID_UART0, 512, 512,
 	[](AsyncSerial*) noexcept
 	{

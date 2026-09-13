@@ -48,7 +48,7 @@ namespace FirmwareUpdater
 			}
 			if (moduleMap.IsBitSet(WifiFirmwareModule))
 			{
-#if defined(HAS_WIFI_UART) && !HAS_WIFI_UART
+#if !HAS_WIFI_UART
 				reply.copy("WiFi firmware upload is unavailable because this board has no verified ESP UART wiring");
 				return GCodeResult::error;
 #else

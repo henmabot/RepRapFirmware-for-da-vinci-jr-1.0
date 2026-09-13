@@ -201,7 +201,7 @@ void SERIAL_WIFI_ISR3() noexcept
 	serialWiFiDevice->Interrupt3();
 }
 
-#elif !defined(HAS_WIFI_UART) || HAS_WIFI_UART
+#elif HAS_WIFI_UART
 
 #define SERIAL_WIFI_DEVICE	(serialWiFi)
 
@@ -323,7 +323,7 @@ WiFiInterface::WiFiInterface(Platform& p) noexcept
 #if defined(DUET3MINI)
 	serialWiFiDevice = new AsyncSerial(WiFiUartSercomNumber, WiFiUartRxPad, 512, 512, SerialWiFiPortInit, SerialWiFiPortDeinit);
 	serialWiFiDevice->setInterruptPriority(NvicPriorityWiFiUartRx, NvicPriorityWiFiUartTx);
-#elif !defined(HAS_WIFI_UART) || HAS_WIFI_UART
+#elif HAS_WIFI_UART
 	SERIAL_WIFI_DEVICE.setInterruptPriority(NvicPriorityWiFiUart);
 #endif
 }
@@ -494,7 +494,7 @@ void WiFiInterface::Activate() noexcept
 		bufferIn = new MessageBufferIn;
 #endif
 
-#if (HAS_MASS_STORAGE || HAS_EMBEDDED_FILES) && (!defined(HAS_WIFI_UART) || HAS_WIFI_UART)
+#if (HAS_MASS_STORAGE || HAS_EMBEDDED_FILES) && HAS_WIFI_UART
 		uploader = new WifiFirmwareUploader(SERIAL_WIFI_DEVICE, *this);
 #endif
 		if (requestedMode != WiFiState::disabled)
@@ -889,7 +889,7 @@ void WiFiInterface::Spin() noexcept
 	}
 
 	// Check for debug info received from the WiFi module
-#if !defined(HAS_WIFI_UART) || HAS_WIFI_UART
+#if HAS_WIFI_UART
 	if (serialRunning)
 	{
 		while (!debugPrintPending && SERIAL_WIFI_DEVICE.available() != 0)
@@ -2472,7 +2472,7 @@ void WiFiInterface::StartWiFi() noexcept
 
 	digitalWrite(EspEnablePin, true);
 
-#if !defined(HAS_WIFI_UART) || HAS_WIFI_UART
+#if HAS_WIFI_UART
 # if WIFI_USES_ESP32
 	SERIAL_WIFI_DEVICE.begin(WiFiBaudRate_ESP32);				// initialise the UART, to receive debug info
 # else
@@ -2493,13 +2493,13 @@ void WiFiInterface::ResetWiFi() noexcept
 
 	SetPinMode(EspEnablePin, OUTPUT_LOW);
 
-#if !defined(SAME5x) && (!defined(HAS_WIFI_UART) || HAS_WIFI_UART)
+#if !defined(SAME5x) && HAS_WIFI_UART
 	pinMode(APIN_SerialWiFi_TXD, INPUT_PULLUP);					// just enable pullups on TxD and RxD pins
 	pinMode(APIN_SerialWiFi_RXD, INPUT_PULLUP);
 #endif
 	currentMode = WiFiState::disabled;
 
-#if !defined(HAS_WIFI_UART) || HAS_WIFI_UART
+#if HAS_WIFI_UART
 	if (serialRunning)
 	{
 		SERIAL_WIFI_DEVICE.end();
@@ -2516,7 +2516,7 @@ void WiFiInterface::ResetWiFi() noexcept
 // 0		0		1		SD card boot (not used in on Duet)
 void WiFiInterface::ResetWiFiForUpload(bool external) noexcept
 {
-#if !defined(HAS_WIFI_UART) || HAS_WIFI_UART
+#if HAS_WIFI_UART
 	if (serialRunning)
 	{
 		SERIAL_WIFI_DEVICE.end();
@@ -2551,14 +2551,14 @@ void WiFiInterface::ResetWiFiForUpload(bool external) noexcept
 
 	if (external)
 	{
-#if !defined(DUET3MINI) && (!defined(HAS_WIFI_UART) || HAS_WIFI_UART)
+#if !defined(DUET3MINI) && HAS_WIFI_UART
 		SetPinMode(APIN_SerialWiFi_TXD, INPUT_PULLUP);				// just enable pullups on TxD and RxD pins
 		SetPinMode(APIN_SerialWiFi_RXD, INPUT_PULLUP);
 #endif
 	}
 	else
 	{
-#if !SAME5x && (!defined(HAS_WIFI_UART) || HAS_WIFI_UART)
+#if !SAME5x && HAS_WIFI_UART
 		SetPinFunction(APIN_SerialWiFi_TXD, SerialWiFiPeriphMode);	// connect the pins to the UART
 		SetPinFunction(APIN_SerialWiFi_RXD, SerialWiFiPeriphMode);	// connect the pins to the UART
 #endif

@@ -21,6 +21,10 @@
 
 #include P_INCLUDE_FILE
 
+#ifndef HAS_WIFI_UART
+# define HAS_WIFI_UART			HAS_WIFI_NETWORKING
+#endif
+
 // Apply default values to anything not configured
 #ifndef SUPPORT_NONLINEAR_EXTRUSION
 # define SUPPORT_NONLINEAR_EXTRUSION	1		// for now this is always enabled
