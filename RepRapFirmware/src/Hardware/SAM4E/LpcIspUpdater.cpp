@@ -361,6 +361,13 @@ bool Update(const StringRef& filenameRef) noexcept
 		reprap.GetPlatform().MessageF(ErrorMessage, "LPC update: can't open %s\n", filename);
 		return false;
 	}
+	String<StringLength100> validationReply;
+	if (!ValidateFirmware(*firmware, filename, validationReply.GetRef()))
+	{
+		firmware->Close();
+		reprap.GetPlatform().MessageF(ErrorMessage, "LPC update: %s\n", validationReply.c_str());
+		return false;
+	}
 	const FilePosition imageLength = firmware->Length();
 	const uint32_t programLength = static_cast<uint32_t>((imageLength + TransferSize - 1u) & ~(TransferSize - 1u));
 
