@@ -48,6 +48,10 @@ namespace FirmwareUpdater
 			}
 			if (moduleMap.IsBitSet(WifiFirmwareModule))
 			{
+#if defined(HAS_WIFI_UART) && !HAS_WIFI_UART
+				reply.copy("WiFi firmware upload is unavailable because this board has no verified ESP UART wiring");
+				return GCodeResult::error;
+#else
 				String<MaxFilenameLength> location;
 				if (!MassStorage::CombineName(location.GetRef(), FIRMWARE_DIRECTORY, filenameRef.IsEmpty() ? reprap.GetPlatform().GetDefaultWiFiFirmwareName() : filenameRef.c_str())
 						|| !MassStorage::FileExists(location.c_str()))
@@ -55,6 +59,7 @@ namespace FirmwareUpdater
 					reply.printf("File %s not found", location.c_str());
 					return GCodeResult::error;
 				}
+#endif
 			}
 		}
 #endif

@@ -21,6 +21,7 @@ constexpr uint32_t IAP_IMAGE_START = 0x20018000;
 // Only the SAM4E-connected hardware mapped for this board is enabled here.
 #define HAS_LWIP_NETWORKING     0
 #define HAS_WIFI_NETWORKING     1
+#define HAS_WIFI_UART           0       // PA9/PA10 are not verified, so keep WiFi SPI-only
 #define HAS_W5500_NETWORKING    0
 #define HAS_SBC_INTERFACE       0
 #define HAS_MASS_STORAGE        1
@@ -79,12 +80,6 @@ constexpr uint32_t LpcUartBaudRate = 115200;
 constexpr Pin LpcUartRxPin = PortAPin(5);
 constexpr Pin LpcUartTxPin = PortAPin(6);
 constexpr GpioPinFunction LpcUartPinFunction = GpioPinFunction::C;
-
-// Optional ESP8266 debug/firmware-upload UART. UART1 is reserved for the
-// LPC1115, so WiFi uses the otherwise-free UART0 header pins.
-constexpr Pin APIN_SerialWiFi_RXD = PortAPin(9);
-constexpr Pin APIN_SerialWiFi_TXD = PortAPin(10);
-constexpr GpioPinFunction SerialWiFiPeriphMode = GpioPinFunction::A;
 
 // Duet WiFi-compatible ESP8266 SPI transport. ESP GPIO15/CS is wired to PB2.
 // The SAM4E SPI slave can only use NPCS0 as hardware NSS, so PB2 must also be
