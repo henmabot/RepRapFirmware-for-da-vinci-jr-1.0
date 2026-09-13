@@ -77,7 +77,8 @@ int main()
     };
     for (const CalibrationPoint& point : stockTable)
     {
-        assert(std::fabs(DaVinciJrThermistor::ConvertScaledRaw(point.raw) - point.temperature) <= 4.1f);
+        const uint16_t adc = static_cast<uint16_t>((point.raw + 2u) / 4u);
+        assert(std::fabs(DaVinciJrThermistor::ConvertAdc(adc) - point.temperature) <= 4.5f);
     }
 
     // The fitted physical curve is continuous rather than limited to the

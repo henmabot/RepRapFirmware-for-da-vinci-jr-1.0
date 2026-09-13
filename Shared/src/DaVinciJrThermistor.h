@@ -10,10 +10,6 @@ namespace DaVinciJrThermistor
 // NTC divider model inferred from the stock ROM calibration table.
 float ConvertAdc(uint16_t rawAdc) noexcept;
 
-// Exposed for calibration tests against the stock SAM4E table, whose entries
-// use the LPC ADC result multiplied by four.
-float ConvertScaledRaw(uint16_t scaledRaw) noexcept;
-
 }
 
 #endif

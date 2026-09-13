@@ -19,8 +19,6 @@ constexpr float PullupResistance = 820.0f;
 constexpr float ScaledAdcFullScale = 4095.0f;
 constexpr float KelvinOffset = 273.15f;
 
-}
-
 float ConvertScaledRaw(uint16_t scaledRaw) noexcept
 {
 	if (scaledRaw == 0)
@@ -37,6 +35,8 @@ float ConvertScaledRaw(uint16_t scaledRaw) noexcept
 	const float inverseKelvin = (1.0f / NominalTemperatureKelvin)
 		+ logf(resistance / NominalResistance) / Beta;
 	return (1.0f / inverseKelvin) - KelvinOffset;
+}
+
 }
 
 float ConvertAdc(uint16_t rawAdc) noexcept
