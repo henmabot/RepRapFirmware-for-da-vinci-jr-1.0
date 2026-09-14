@@ -29,9 +29,9 @@ M208 X-1:169 Y-5:175 Z0:155
 ; Require homing before ordinary axis motion and enforce the configured limits.
 M564 H1 S1
 
-; X/Z home low; Y homes high.
+; X/Z home low; Y also homes low (!!!).
 M574 X1 S1 P"xstop"
-M574 Y2 S1 P"ystop"
+M574 Y1 S1 P"ystop"
 M574 Z1 S1 P"zstop"
 
 ; Verified LPC1115 peripherals only; NFC is intentionally not exposed.
