@@ -14,14 +14,13 @@
 #define DEFAULT_BOARD_TYPE      BoardType::DaVinciJr_10
 #define IAP_FIRMWARE_FILE       "DaVinciJrFirmware.bin"
 #define IAP_UPDATE_FILE         "DaVinciJrIap.bin"
-#define WIFI_FIRMWARE_FILE      "DuetWiFiServer.bin"
+
 
 constexpr uint32_t IAP_IMAGE_START = 0x20018000;
 
 // Only the SAM4E-connected hardware mapped for this board is enabled here.
 #define HAS_LWIP_NETWORKING     0
-#define HAS_WIFI_NETWORKING     1
-#define HAS_WIFI_UART           0       // SPI networking does not require the optional ESP UART
+#define HAS_WIFI_NETWORKING     0       // WiFi wiring is not enabled until the board-level pin plan is agreed
 #define HAS_W5500_NETWORKING    0
 #define HAS_SBC_INTERFACE       0
 #define HAS_MASS_STORAGE        1
@@ -81,27 +80,7 @@ constexpr Pin LpcUartRxPin = PortAPin(5);
 constexpr Pin LpcUartTxPin = PortAPin(6);
 constexpr GpioPinFunction LpcUartPinFunction = GpioPinFunction::C;
 
-// Duet WiFi-compatible ESP8266 SPI transport. In SAM4E slave mode, hardware
-// NSS must use PA11/NPCS0, so ESP GPIO15/CS is wired there directly. PB2 is a
-// plain GPIO and is used for the SAM-to-ESP transfer-ready signal instead.
-#define ESP_SPI                 SPI
-#define ESP_SPI_INTERFACE_ID    ID_SPI
-#define ESP_SPI_IRQn            SPI_IRQn
-#define ESP_SPI_HANDLER         SPI_Handler
-constexpr uint32_t DMA_HW_ID_SPI_TX = 1;
-constexpr uint32_t DMA_HW_ID_SPI_RX = 2;
-constexpr Pin APIN_ESP_SPI_MISO = PortAPin(12);
-constexpr Pin APIN_ESP_SPI_MOSI = PortAPin(13);
-constexpr Pin APIN_ESP_SPI_SCK = PortAPin(14);
-constexpr Pin APIN_ESP_SPI_SS0 = PortAPin(11);
-constexpr GpioPinFunction SPIPeriphMode = GpioPinFunction::A;
-constexpr Pin EspResetPin = PortCPin(24);
-constexpr Pin EspEnablePin = PortBPin(14);
-constexpr Pin EspDataReadyPin = PortEPin(3);
-constexpr Pin SamTfrReadyPin = PortBPin(2);
-constexpr Pin SamCsPin = APIN_ESP_SPI_SS0;
-constexpr DmaChannel DmacChanWiFiTx = 1;
-constexpr DmaChannel DmacChanWiFiRx = 2;
+
 // X, Y, Z, E1 motor wiring. The TB62269 ENABLE inputs are active high.
 constexpr Pin DriverEnablePins[NumDirectDrivers] = {
 	PortDPin(3), PortDPin(5), PortDPin(6), PortDPin(16)

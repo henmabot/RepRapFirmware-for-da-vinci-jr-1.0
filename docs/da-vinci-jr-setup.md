@@ -1,33 +1,29 @@
 # Da Vinci Jr 1.0 firmware setup
 
-This port uses Da Vinci Jr 1.0 motion data recovered from the stock firmware together with the traced LPC1115 peripheral and endstop mappings. The supplied `sys/config.g` configures the single extruder, hotend heater and thermistor, both traced LPC-controlled fans, and the filament sensor. It also configures the stock travel and homing geometry and Duet WiFi networking.
+This port uses Da Vinci Jr 1.0 motion data recovered from the stock firmware together with the traced LPC1115 peripheral and endstop mappings. The supplied `sys/config.g` configures the single extruder, hotend heater and thermistor, both traced LPC-controlled fans, the filament sensor, and the recovered travel and homing geometry.
 
-WiFi credentials are intentionally not stored in the repository. Configure them with `M587`, then `M552 S1` in `config.g` starts the interface on boot.
+## Duet WiFi wiring proposal
 
-## Duet WiFi wiring
-
-The firmware uses the Duet WiFi SPI protocol with these SAM4E connections:
+Duet WiFi is not enabled in the current board configuration. The previously proposed wiring was:
 
 | SAM4E | ESP8266 | Function |
 | --- | --- | --- |
-| PB2 | GPIO4 | SAM transfer ready |
+| PA26 | GPIO4 | SAM transfer ready |
 | PE3 | GPIO0 | ESP data ready / boot strap |
-| PA11 | GPIO15 | ESP chip select / boot strap |
+| PB2 | GPIO15 | ESP chip select / boot strap |
 | PA12 | GPIO12 | MISO |
 | PA13 | GPIO13 | MOSI |
 | PA14 | GPIO14 | SCLK |
 | PC24 | RST | ESP reset |
 | PB14 | ENABLE | ESP enable |
 
-The SAM4E SPI peripheral accepts only NPCS0/PA11 as slave-select in slave mode. Connect ESP GPIO15 to PA11 directly, with no PB2-to-PA11 bridge. Use PB2 as the ordinary GPIO output for the SAM transfer-ready signal. The current board pinout lists both PA11 and PB2 with no visible connection. This does not prove there is no hidden PCB connection, so check continuity on the target board before soldering.
+The SAM4E SPI peripheral accepts only NPCS0/PA11 as its hardware slave-select input in slave mode. The earlier "PB2-to-PA11 bridge" proposal meant a literal jumper between PB2 and PA11. Such a jumper mirrors the ESP GPIO15/CS signal onto PA11 so the SPI peripheral can see the required hardware NSS signal. PA11 is already used and unavailable on this board, so the proposal is invalid. This port does not implement or recommend that bridge.
 
-PA26 remains SD DAT2. The SD socket therefore stays in its original four-bit HSMCI mode on PA26..PA31.
+PA26 is SD DAT2 and remains part of the original four-bit HSMCI bus. This branch no longer changes the SD bus width. A future WiFi patch needs an approved free GPIO for ESP GPIO4/SAM transfer-ready. This repository does not pick one speculatively.
 
-The traced board also assigns PC24 and PB14 to the stock right/left laser nets. This configuration dedicates those pins to ESP reset and enable, so the laser functions are unavailable at the same time.
+The traced board also assigns PC24 and PB14 to the stock right/left laser nets. The proposal uses those pins for ESP reset and enable, so the laser functions cannot be used at the same time.
 
-### ESP firmware update path
-
-Normal networking uses only the SPI/control wiring in the preceding section and does not require a SAM-to-ESP UART. This build therefore leaves the optional ESP UART off. In this RepRapFirmware version, `M997 S1` specifically invokes the ESP ROM UART uploader. That command is separate from normal SPI networking and from any external ESP flash-programming method, so this board configuration does not provide it.
+This proposal does not add PA9/PA10 UART wiring. The intended ESP12 runtime and firmware-update design is SPI-based, so UART0 is not part of the board wiring discussion.
 
 ### Other LPC inputs
 

@@ -58,7 +58,3 @@ M591 D0 P1 C"lpc.filament" S2
 ; Declaring heater 0 as the tool heater enables RRF's default hotend model.
 ; Neither verified fan is assumed to be the slicer's part-cooling fan.
 M563 P0 D0 H0 F-1
-
-; Start the Duet WiFi interface. Configure credentials with M587 before use;
-; HTTP is enabled by default by RepRapFirmware's network interface.
-M552 S1
