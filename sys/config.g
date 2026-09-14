@@ -5,15 +5,15 @@ M550 P"Da Vinci Jr 1.0"
 ; Driver 0=X, 1=Y, 2=Z, 3=E1.
 M584 X0 Y1 Z2 E3
 
-; TB62269 direction inputs are high for clockwise rotation. Positive X/Z are
-; clockwise; positive Y is counter-clockwise.
+; The stock TB62269 direction inputs are high for clockwise rotation.
+; Y is intentionally reversed so positive Y uses the opposite motor direction.
 M569 P0 S1
 M569 P1 S0
 M569 P2 S1
 M569 P3 S1
 
-; Stock ROM calibration. The TB62269 microstep mode is hardware-set, so there is
-; intentionally no M350 command.
+; Stock mechanics. X/Y/E use 3200 microsteps/revolution. Z uses 6400.
+; The TB62269 microstep mode is hardware-set, so there is intentionally no M350.
 M92 X80 Y80 Z2560 E96
 
 ; Recovered stock planner limits. M203 S1 uses mm/s; M566 uses mm/min.
@@ -22,8 +22,7 @@ M201 X9000 Y9000 Z5 E10000
 M204 P3000 T3000
 M566 X1200 Y1200 Z24 E300
 
-; Recovered stock Cartesian clamps. With the RRF coordinate orientation below,
-; X homes at the low end, Y at the high end, and Z at the low end.
+; Recovered stock Cartesian travel limits.
 M208 X-1:169 Y-5:175 Z0:155
 
 ; Require homing before ordinary axis motion and enforce the configured limits.
@@ -47,9 +46,6 @@ M106 P0 C"Hotend fan" H0 T45:45
 M950 F1 C"lpc.reflowfan" Q250
 M106 P1 C"Reflow fan" H0 T45:45
 
-; The hotend IR filament sensor is verified active-low. Its pin alias performs
-; that electrical inversion, so P1 reports filament present when the logical
-; input is high. Check it for all extrusion, including non-SD jobs.
 M591 D0 P1 C"lpc.filament" S2
 
 ; Declaring heater 0 as the tool heater enables RRF's default hotend model.
