@@ -37,6 +37,14 @@ static bool thermalStatusReceived;
 static ThermalStatus thermalStatus;
 static uint32_t thermalStatusReceivedAt;
 
+// Tuning report reassembly. heaterTuningReportA is always immediately followed by heaterTuningReportB
+// on this point-to-point link, so we just hold the A-half until B arrives; there is nothing else that
+// could interleave with them.
+static TuningReport pendingTuningReport;
+static bool haveTuningReportA;
+static TuningReport latestTuningReport;
+static bool tuningReportPending;
+
 static void PutFloat(uint8_t* destination, float value) noexcept
 {
 	memcpy(destination, &value, sizeof(value));
@@ -56,6 +64,21 @@ static uint16_t ReadU16(const uint8_t* source) noexcept
 static int16_t ReadI16(const uint8_t* source) noexcept
 {
 	return static_cast<int16_t>(ReadU16(source));
+}
+
+static uint32_t ReadU32(const uint8_t* source) noexcept
+{
+	return static_cast<uint32_t>(source[0])
+		| (static_cast<uint32_t>(source[1]) << 8)
+		| (static_cast<uint32_t>(source[2]) << 16)
+		| (static_cast<uint32_t>(source[3]) << 24);
+}
+
+static float ReadFloat(const uint8_t* source) noexcept
+{
+	float value;
+	memcpy(&value, source, sizeof(value));
+	return value;
 }
 
 static int16_t ToDeciDegrees(float value) noexcept
@@ -221,6 +244,38 @@ static void HandleThermalStatus(const LpcProtocol::Frame& frame) noexcept
 	thermalStatus.error = static_cast<LpcProtocol::ThermalError>(frame.payload[7]);
 	thermalStatusReceivedAt = millis();
 	thermalStatusReceived = true;
+}
+
+static void HandleTuningReportA(const LpcProtocol::Frame& frame) noexcept
+{
+	if (frame.length != 14)
+	{
+		haveTuningReportA = false;
+		return;
+	}
+	pendingTuningReport.cyclesDone = ReadU16(frame.payload);
+	pendingTuningReport.ton = ReadU32(frame.payload + 2);
+	pendingTuningReport.toff = ReadU32(frame.payload + 6);
+	pendingTuningReport.dlow = ReadU32(frame.payload + 10);
+	haveTuningReportA = true;
+}
+
+static void HandleTuningReportB(const LpcProtocol::Frame& frame) noexcept
+{
+	if (frame.length != 16 || !haveTuningReportA)
+	{
+		haveTuningReportA = false;
+		return;
+	}
+	pendingTuningReport.dhigh = ReadU32(frame.payload);
+	pendingTuningReport.heatingRate = ReadFloat(frame.payload + 4);
+	pendingTuningReport.coolingRate = ReadFloat(frame.payload + 8);
+	pendingTuningReport.voltage = ReadFloat(frame.payload + 12);
+	haveTuningReportA = false;
+
+	TaskCriticalSectionLocker lock;
+	latestTuningReport = pendingTuningReport;
+	tuningReportPending = true;
 }
 
 void Init() noexcept
