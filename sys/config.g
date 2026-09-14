@@ -5,10 +5,10 @@ M550 P"Da Vinci Jr 1.0"
 ; Driver 0=X, 1=Y, 2=Z, 3=E1.
 M584 X0 Y1 Z2 E3
 
-; Keep X/Y physical motion aligned with the previous RRF coordinate system while
-; retaining the recovered stock high-end homing coordinates below.
-M569 P0 S0
-M569 P1 S1
+; TB62269 direction inputs are high for clockwise rotation. Positive X/Z are
+; clockwise; positive Y is counter-clockwise.
+M569 P0 S1
+M569 P1 S0
 M569 P2 S1
 M569 P3 S1
 
@@ -22,14 +22,15 @@ M201 X9000 Y9000 Z5 E10000
 M204 P3000 T3000
 M566 X1200 Y1200 Z24 E300
 
-; Recovered stock Cartesian clamps and G28 home coordinates: X169, Y175, Z0.
+; Recovered stock Cartesian clamps. With the RRF coordinate orientation below,
+; X homes at the low end, Y at the high end, and Z at the low end.
 M208 X-1:169 Y-5:175 Z0:155
 
 ; Require homing before ordinary axis motion and enforce the configured limits.
 M564 H1 S1
 
-; X and Y home at the high end of their recovered travel ranges; Z homes low.
-M574 X2 S1 P"xstop"
+; X/Z home low; Y homes high.
+M574 X1 S1 P"xstop"
 M574 Y2 S1 P"ystop"
 M574 Z1 S1 P"zstop"
 
