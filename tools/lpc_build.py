@@ -77,14 +77,13 @@ def compile_source(source: Path) -> Path:
     return obj
 
 
-def patch_vector_checksum(binary: Path) -> None:
-    data = bytearray(binary.read_bytes())
+def validate_vector_checksum(binary: Path) -> None:
+    data = binary.read_bytes()
     if len(data) < 32:
         raise RuntimeError("LPC1115 image is too small to contain a vector table")
     words = struct.unpack_from("<8I", data)
-    checksum = (-sum(words[:7])) & 0xFFFFFFFF
-    struct.pack_into("<I", data, 28, checksum)
-    binary.write_bytes(data)
+    if sum(words) & 0xFFFFFFFF:
+        raise RuntimeError("LPC1115 vector checksum is invalid")
 
 
 def build() -> None:
@@ -112,7 +111,7 @@ def build() -> None:
         ]
     )
     run([tool("objcopy"), "-O", "binary", str(elf), str(binary)])
-    patch_vector_checksum(binary)
+    validate_vector_checksum(binary)
     run([tool("size"), str(elf)])
     print(f"LPC firmware: {binary.relative_to(ROOT)}", flush=True)
 

@@ -8,6 +8,9 @@ MEMORY
 
 _estack = ORIGIN(RAM) + LENGTH(RAM);
 
+/* LPC11xx boot ROM requires the first eight vector words to sum to zero. */
+__vector_checksum = 0 - (_estack + Reset_Handler + (2 * Default_Handler) + 3);
+
 SECTIONS
 {
 	.isr_vector :
