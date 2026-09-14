@@ -37,11 +37,14 @@ private:
 	GCodeResult ValidateMonitors(const StringRef& reply) const noexcept;
 	void PollTuning() noexcept;
 	void StopTuning() noexcept;
+	void CancelTuning(const char *reason) noexcept;
 
 	PwmFrequency frequency;
 	HeaterMode mode;
 	uint32_t connectionGeneration;
 	bool tuning = false;
+	uint32_t tuningBeginTime;			// when the current tuning run started, for the not-increasing/overall timeout checks
+	float tuningStartTemperature;		// temperature when tuning started, for the "not increasing" check
 };
 
 #endif

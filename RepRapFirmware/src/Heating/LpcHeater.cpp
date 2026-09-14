@@ -3,6 +3,7 @@
 #include "Heat.h"
 #include <Hardware/SAM4E/LpcInterface.h>
 #include <Platform/RepRap.h>
+#include <Platform/Platform.h>
 #include <Platform/Event.h>
 #include <Tools/Tool.h>
 
@@ -340,6 +341,8 @@ GCodeResult LpcHeater::StartAutoTune(const StringRef& reply, bool seenA, float a
 	SendConfiguration();
 	LpcInterface::StartHeaterTuning(true, tuningPwm, tuningTargetTemp - tuningHysteresis, tuningTargetTemp, TuningPeakTempDrop);
 	tuning = true;
+	tuningBeginTime = millis();
+	tuningStartTemperature = status.temperature;
 	tuningPhase = 1;
 	ReportTuningUpdate();
 	return GCodeResult::ok;
@@ -356,13 +359,45 @@ void LpcHeater::StopTuning() noexcept
 	}
 }
 
+// Cancel tuning because of a timeout/stall, logging why. Mirrors the messages RemoteHeater/LocalHeater
+// print for the same situations (see RemoteHeater::Spin()'s TuningState::heatingUp case).
+void LpcHeater::CancelTuning(const char *reason) noexcept
+{
+	reprap.GetPlatform().MessageF(GenericMessage, "Auto tune cancelled because %s\n", reason);
+	StopTuning();
+}
+
 // Called from Spin() once per tick while tuning is in progress. Consumes at most one newly-completed
 // tuning cycle per call, in the same way RemoteHeater::UpdateHeaterTuning does for a CAN report.
+//
+// The LPC firmware's own relay-tuning state machine (LpcFirmware/src/Thermal.cpp) has no timeout of
+// its own while waiting to reach the high threshold - unlike LocalHeater's non-expansion path, its
+// ExpansionMode-equivalent phases just wait indefinitely for the temperature to cross a threshold, the
+// same as RemoteHeater's CAN-connected expansion boards do. RemoteHeater covers this gap with its own
+// host-side timers in Spin()'s TuningState::heatingUp case; we do the same here, since PollTuning()
+// only hears from the firmware once a cycle completes and would otherwise never notice a stall.
 void LpcHeater::PollTuning() noexcept
 {
 	LpcInterface::TuningReport report;
 	if (!LpcInterface::GetTuningReport(report))
 	{
+		// No completed cycle yet - watch for the same two stall conditions RemoteHeater checks in its
+		// TuningState::heatingUp case (RepRapFirmware/src/Heating/RemoteHeater.cpp), re-expressed
+		// against our own host-side timer since the LPC firmware doesn't report progress until a full
+		// heating+cooling cycle completes.
+		const uint32_t heatingTime = millis() - tuningBeginTime;
+		LpcInterface::ThermalStatus status;
+		const bool haveStatus = LpcInterface::GetThermalStatus(status);
+		if (heatingTime > (uint32_t)((GetModel().GetDeadTime() + 30.0) * SecondsToMillis)
+			&& haveStatus && (status.temperature - tuningStartTemperature) < 3.0f)
+		{
+			CancelTuning("temperature is not increasing");
+			return;
+		}
+		if (heatingTime >= ToolHeaterTuningTargetTemperatureTimeout * 60u * (uint32_t)SecondsToMillis)
+		{
+			CancelTuning("target temperature was not reached");
+		}
 		return;
 	}
 
