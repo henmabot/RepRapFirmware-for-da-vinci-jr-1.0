@@ -424,9 +424,23 @@ void LpcHeater::PollTuning() noexcept
 	}
 }
 
+// Apply extrusion feedforward. This is called unconditionally by Heater::SetExtrusionFeedForward()
+// whenever a move updates the feedforward boost, regardless of what mode the heater is in - RRF core
+// doesn't gate this on tuning state. LocalHeater's own ApplyExtrusionFeedForward() only applies the
+// boost while mode == stable (RepRapFirmware/src/Heating/LocalHeater.cpp); mirror that here rather
+// than forwarding every update to the LPC firmware unconditionally. This matters more for us than for
+// LocalHeater/RemoteHeater: the LPC firmware's ConfigureFeedForward() hard-faults
+// (ThermalError::controlFault) on any non-finite fan/pwm/temperature boost value, and feedforward
+// values computed from an in-progress or not-yet-settled move can transiently be non-finite. Applying
+// (or even sending) a feedforward boost while tuning makes no sense anyway - the tuning relay loop
+// ignores targetTemperature/PID entirely - so skipping the send while tuning, in addition to matching
+// LocalHeater's stable-only gating, avoids that class of spurious fault entirely.
 void LpcHeater::ApplyExtrusionFeedForward() noexcept
 {
-	SendFeedForward();
+	if (!tuning && mode == HeaterMode::stable)
+	{
+		SendFeedForward();
+	}
 }
 
 void LpcHeater::SendConfiguration() noexcept
@@ -453,9 +467,17 @@ void LpcHeater::SendConfiguration() noexcept
 		static_cast<uint8_t>(min<uint32_t>(GetMaxBadTemperatureCount(), 255u)));
 }
 
+// The LPC firmware hard-faults (controlFault) on any non-finite value here, whereas a bad feedforward
+// value elsewhere in RRF would normally just produce a wrong (but finite) PWM. Sanitise defensively
+// at the point we cross into the wire protocol, on top of the tuning gate in
+// ApplyExtrusionFeedForward(), so a future caller of SendFeedForward() can't reintroduce this failure
+// mode.
 void LpcHeater::SendFeedForward() noexcept
 {
-	LpcInterface::ConfigureHeaterFeedForward(lastFanPwm, extrusionPwmBoost, extrusionTemperatureBoost);
+	const float safeFanPwm = std::isfinite(lastFanPwm) ? lastFanPwm : 0.0f;
+	const float safeExtrusionPwmBoost = std::isfinite(extrusionPwmBoost) ? extrusionPwmBoost : 0.0f;
+	const float safeExtrusionTemperatureBoost = std::isfinite(extrusionTemperatureBoost) ? extrusionTemperatureBoost : 0.0f;
+	LpcInterface::ConfigureHeaterFeedForward(safeFanPwm, safeExtrusionPwmBoost, safeExtrusionTemperatureBoost);
 }
 
 void LpcHeater::RaiseFault(LpcProtocol::ThermalError error) noexcept
