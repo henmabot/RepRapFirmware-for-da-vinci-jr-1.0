@@ -15,12 +15,11 @@
 #define IAP_FIRMWARE_FILE       "DaVinciJrFirmware.bin"
 #define IAP_UPDATE_FILE         "DaVinciJrIap.bin"
 
-
 constexpr uint32_t IAP_IMAGE_START = 0x20018000;
 
 // Only the SAM4E-connected hardware mapped for this board is enabled here.
 #define HAS_LWIP_NETWORKING     0
-#define HAS_WIFI_NETWORKING     0       // WiFi wiring is not enabled until the board-level pin plan is agreed
+#define HAS_WIFI_NETWORKING     0
 #define HAS_W5500_NETWORKING    0
 #define HAS_SBC_INTERFACE       0
 #define HAS_MASS_STORAGE        1
@@ -80,7 +79,6 @@ constexpr Pin LpcUartRxPin = PortAPin(5);
 constexpr Pin LpcUartTxPin = PortAPin(6);
 constexpr GpioPinFunction LpcUartPinFunction = GpioPinFunction::C;
 
-
 // X, Y, Z, E1 motor wiring. The TB62269 ENABLE inputs are active high.
 constexpr Pin DriverEnablePins[NumDirectDrivers] = {
 	PortDPin(3), PortDPin(5), PortDPin(6), PortDPin(16)
@@ -102,7 +100,7 @@ constexpr float DefaultThermistorSeriesR = 4700.0;
 constexpr Pin DiagPin = NoPin;
 constexpr bool DiagOnPolarity = true;
 
-// SD card: four-bit HSMCI on PA26..PA31, card detect on PA25.
+// SD card: HSMCI four-bit bus on PA26..PA31, card detect on PA25.
 constexpr size_t NumSdCards = 1;
 constexpr Pin SdCardDetectPins[NumSdCards] = { PortAPin(25) };
 // The socket grounds CD when no card is inserted; with the pull-up enabled,
