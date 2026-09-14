@@ -12,11 +12,13 @@ BINARY = BUILD_DIR / "protocol-selftest"
 TEST_PROGRAM = r'''
 #include <DaVinciJrThermistor.h>
 #include <LpcProtocol.h>
+#include "LpcFirmware/src/Thermal.cpp"
 
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <cmath>
+#include <cstdio>
 
 using namespace LpcProtocol;
 
@@ -101,6 +103,14 @@ int main()
         previous = current;
     }
 
+    constexpr float startupTarget = -273.15f;
+    constexpr float transmittedLowerLimit = -273.1f;
+    assert(Thermal::TargetWithinLimits(startupTarget, 265.0f, transmittedLowerLimit));
+    std::puts("PASS: absolute-zero startup target is accepted with disabled lower monitor");
+    assert(!Thermal::TargetWithinLimits(40.0f, 265.0f, 50.0f));
+    assert(Thermal::TargetWithinLimits(50.0f, 265.0f, 50.0f));
+    std::puts("PASS: configured lower limit still rejects colder target");
+
     uint8_t encoded[MaxEncodedFrame] = {};
     size_t length = Encode(MessageType::gpioWrite, payload, 2, encoded);
     assert(length != 0);
@@ -144,11 +154,18 @@ def main() -> int:
             "-Wall",
             "-Wextra",
             "-Werror",
+            "-ffunction-sections",
+            "-fdata-sections",
+            "-I",
+            str(ROOT),
+            "-I",
+            str(ROOT / "LpcFirmware" / "src"),
             "-I",
             str(ROOT / "Shared" / "src"),
             str(SOURCE),
             str(ROOT / "Shared" / "src" / "DaVinciJrThermistor.cpp"),
             str(ROOT / "Shared" / "src" / "LpcProtocol.cpp"),
+            "-Wl,--gc-sections",
             "-o",
             str(BINARY),
         ],
