@@ -11,6 +11,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 BUILD_DIR = ROOT / "build" / "LpcFirmware"
+FLASH_SIZE = 64 * 1024
+RAM_TOP = 0x10002000
 CPU_FLAGS = ("-mcpu=cortex-m0", "-mthumb")
 COMMON_FLAGS = (
     "-Os",
@@ -77,11 +79,19 @@ def compile_source(source: Path) -> Path:
     return obj
 
 
-def validate_vector_checksum(binary: Path) -> None:
+def validate_image(binary: Path) -> None:
     data = binary.read_bytes()
     if len(data) < 32:
         raise RuntimeError("LPC1115 image is too small to contain a vector table")
+    if len(data) > FLASH_SIZE:
+        raise RuntimeError(f"LPC1115 image exceeds {FLASH_SIZE} bytes of flash")
+
     words = struct.unpack_from("<8I", data)
+    if words[0] != RAM_TOP:
+        raise RuntimeError(f"LPC1115 initial stack pointer is 0x{words[0]:08X}, expected 0x{RAM_TOP:08X}")
+    reset_vector = words[1]
+    if (reset_vector & 1) == 0 or (reset_vector & ~1) >= len(data):
+        raise RuntimeError(f"LPC1115 reset vector 0x{reset_vector:08X} is not a valid Thumb target in the image")
     if sum(words) & 0xFFFFFFFF:
         raise RuntimeError("LPC1115 vector checksum is invalid")
 
@@ -111,7 +121,7 @@ def build() -> None:
         ]
     )
     run([tool("objcopy"), "-O", "binary", str(elf), str(binary)])
-    validate_vector_checksum(binary)
+    validate_image(binary)
     run([tool("size"), str(elf)])
     print(f"LPC firmware: {binary.relative_to(ROOT)}", flush=True)
 
