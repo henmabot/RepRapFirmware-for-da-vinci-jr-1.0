@@ -838,7 +838,7 @@ bool TakeStatus(uint8_t* payload, size_t& length) noexcept
 		return false;
 	}
 	statusDirty = false;
-	const float boundedTemperature = Clamp(temperature, -327.68f, 327.67f);
+	const float boundedTemperature = DaVinciJrThermistor::ClampReportedTemperature(temperature);
 	const int16_t temperatureCenti = static_cast<int16_t>(boundedTemperature * 100.0f);
 	const uint16_t pwm = static_cast<uint16_t>(Clamp(averagePwm, 0.0f, 1.0f) * 65535.0f + 0.5f);
 	payload[0] = static_cast<uint8_t>(temperatureCenti);

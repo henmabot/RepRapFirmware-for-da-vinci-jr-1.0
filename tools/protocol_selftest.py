@@ -95,6 +95,11 @@ int main()
     // five-degree entries, and edge extrapolation extends beyond 10..250C.
     assert(DaVinciJrThermistor::ConvertAdc(100) > 300.0f);
     assert(DaVinciJrThermistor::ConvertAdc(1022) < 0.0f);
+    assert(DaVinciJrThermistor::ClampReportedTemperature(-50.0f) == 10.0f);
+    assert(DaVinciJrThermistor::ClampReportedTemperature(10.0f) == 10.0f);
+    assert(DaVinciJrThermistor::ClampReportedTemperature(125.0f) == 125.0f);
+    assert(DaVinciJrThermistor::ClampReportedTemperature(250.0f) == 250.0f);
+    assert(DaVinciJrThermistor::ClampReportedTemperature(350.0f) == 350.0f);
     float previous = DaVinciJrThermistor::ConvertAdc(1);
     for (uint16_t raw = 2; raw < 1023; ++raw)
     {

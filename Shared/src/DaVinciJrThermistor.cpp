@@ -28,6 +28,7 @@ constexpr CalibrationPoint StockTable[] = {
 	{3968, 55}, {3984, 50}, {4000, 45}, {4018, 40}, {4034, 35},
 	{4049, 30}, {4058, 25}, {4068, 20}, {4073, 15}, {4077, 10},
 };
+constexpr size_t StockTableCount = sizeof(StockTable) / sizeof(StockTable[0]);
 
 float Interpolate(uint16_t raw, const CalibrationPoint& hotter, const CalibrationPoint& colder) noexcept
 {
@@ -42,22 +43,20 @@ float Interpolate(uint16_t raw, const CalibrationPoint& hotter, const Calibratio
 
 float ConvertScaledRaw(uint16_t raw) noexcept
 {
-	constexpr size_t Count = sizeof(StockTable) / sizeof(StockTable[0]);
-
-	// The stock firmware clamps outside the table. This port instead continues
-	// the nearest recovered segment so the sensor remains usable beyond 10..250C.
+	// The control path continues the nearest recovered segment beyond the table
+	// so electrical faults and out-of-range conditions remain distinguishable.
 	if (raw < StockTable[0].raw)
 	{
 		return Interpolate(raw, StockTable[0], StockTable[1]);
 	}
-	for (size_t i = 1; i < Count; ++i)
+	for (size_t i = 1; i < StockTableCount; ++i)
 	{
 		if (raw <= StockTable[i].raw)
 		{
 			return Interpolate(raw, StockTable[i - 1], StockTable[i]);
 		}
 	}
-	return Interpolate(raw, StockTable[Count - 2], StockTable[Count - 1]);
+	return Interpolate(raw, StockTable[StockTableCount - 2], StockTable[StockTableCount - 1]);
 }
 
 }
@@ -65,6 +64,12 @@ float ConvertScaledRaw(uint16_t raw) noexcept
 float ConvertAdc(uint16_t rawAdc) noexcept
 {
 	return ConvertScaledRaw(static_cast<uint16_t>(rawAdc * 4u));
+}
+
+float ClampReportedTemperature(float temperature) noexcept
+{
+	const float minimum = StockTable[StockTableCount - 1].temperature;
+	return (temperature < minimum) ? minimum : temperature;
 }
 
 }

@@ -448,7 +448,8 @@ void Thermistor::Poll() noexcept
 		}
 		else
 		{
-			SetResult(DaVinciJrThermistor::ConvertAdc(static_cast<uint16_t>(rawAdc)), TemperatureError::ok);
+			const float temperature = DaVinciJrThermistor::ConvertAdc(static_cast<uint16_t>(rawAdc));
+			SetResult(DaVinciJrThermistor::ClampReportedTemperature(temperature), TemperatureError::ok);
 		}
 		return;
 	}
