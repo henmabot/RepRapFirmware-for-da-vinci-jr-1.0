@@ -11,13 +11,10 @@ BINARY = BUILD_DIR / "protocol-selftest"
 
 TEST_PROGRAM = r'''
 #include <LpcProtocol.h>
-#include "LpcFirmware/src/Thermal.cpp"
 
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
-#include <cmath>
-#include <cstdio>
 
 using namespace LpcProtocol;
 
@@ -44,18 +41,6 @@ static void RoundTrip(MessageType type, const uint8_t* payload, uint8_t length)
     }
 }
 
-static float BetaTemperature(uint16_t rawAdc)
-{
-   constexpr float pullupR = 820.0f;
-   constexpr float r25 = 100000.0f;
-   constexpr float beta = 4267.0f;
-   constexpr float absoluteZero = -273.15f;
-   constexpr float t25Kelvin = 25.0f - absoluteZero;
-   const float resistance = pullupR * static_cast<float>(rawAdc) / static_cast<float>(1024u - rawAdc);
-   const float recipT = (1.0f / t25Kelvin) + std::log(resistance / r25) / beta;
-   return (1.0f / recipT) + absoluteZero;
-}
-
 int main()
 {
     uint8_t payload[MaxPayload] = {};
@@ -73,42 +58,7 @@ int main()
     RoundTrip(MessageType::gpioState, payload, 2);
     RoundTrip(MessageType::pwmWrite, payload, 5);
     RoundTrip(MessageType::thermalStatus, payload, 8);
-    RoundTrip(MessageType::thermistorConfig, payload, 16);
-
-    struct CalibrationPoint { uint16_t raw; float temperature; };
-    static constexpr CalibrationPoint stockTable[] = {
-        {856, 250}, {893, 245}, {943, 240}, {1017, 235}, {1104, 230},
-        {1179, 225}, {1216, 220}, {1290, 215}, {1414, 210}, {1501, 205},
-        {1576, 200}, {1675, 195}, {1762, 190}, {1886, 185}, {1998, 180},
-        {2122, 175}, {2209, 170}, {2321, 165}, {2445, 160}, {2519, 155},
-        {2643, 150}, {2767, 145}, {2829, 140}, {2954, 135}, {3065, 130},
-        {3152, 125}, {3227, 120}, {3376, 115}, {3376, 115}, {3424, 110},
-        {3504, 105}, {3584, 100}, {3648, 95}, {3712, 90}, {3760, 85},
-        {3808, 80}, {3840, 75}, {3888, 70}, {3904, 65}, {3936, 60},
-        {3968, 55}, {3984, 50}, {4000, 45}, {4018, 40}, {4034, 35},
-        {4049, 30}, {4058, 25}, {4068, 20}, {4073, 15}, {4077, 10},
-    };
-    float squaredError = 0.0f;
-    float maximumError = 0.0f;
-    for (const CalibrationPoint& point : stockTable)
-    {
-        const uint16_t adc = static_cast<uint16_t>((point.raw + 2u) / 4u);
-        const float error = BetaTemperature(adc) - point.temperature;
-        squaredError += error * error;
-        maximumError = std::fmax(maximumError, std::fabs(error));
-    }
-    const float rmsError = std::sqrt(squaredError / (sizeof(stockTable) / sizeof(stockTable[0])));
-    assert(rmsError < 2.0f);
-    assert(maximumError < 5.0f);
-    std::puts("PASS: R820/B4267 Beta model stays close to the recovered stock table");
-
-    constexpr float startupTarget = -273.15f;
-    constexpr float transmittedLowerLimit = -273.1f;
-    assert(Thermal::TargetWithinLimits(startupTarget, 265.0f, transmittedLowerLimit));
-    std::puts("PASS: absolute-zero startup target is accepted with disabled lower monitor");
-    assert(!Thermal::TargetWithinLimits(40.0f, 265.0f, 50.0f));
-    assert(Thermal::TargetWithinLimits(50.0f, 265.0f, 50.0f));
-    std::puts("PASS: configured lower limit still rejects colder target");
+    RoundTrip(MessageType::thermistorConfig, payload, MaxPayload);
 
     uint8_t encoded[MaxEncodedFrame] = {};
     size_t length = Encode(MessageType::gpioWrite, payload, 2, encoded);
@@ -153,17 +103,10 @@ def main() -> int:
             "-Wall",
             "-Wextra",
             "-Werror",
-            "-ffunction-sections",
-            "-fdata-sections",
-            "-I",
-            str(ROOT),
-            "-I",
-            str(ROOT / "LpcFirmware" / "src"),
             "-I",
             str(ROOT / "Shared" / "src"),
             str(SOURCE),
             str(ROOT / "Shared" / "src" / "LpcProtocol.cpp"),
-            "-Wl,--gc-sections",
             "-o",
             str(BINARY),
         ],

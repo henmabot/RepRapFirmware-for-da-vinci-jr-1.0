@@ -3,6 +3,7 @@
 #include "Gpio.h"
 #include "Lpc1115.h"
 #include "Pwm.h"
+
 #include <math.h>
 #include <string.h>
 
@@ -111,16 +112,6 @@ static float Clamp(float value, float low, float high) noexcept
 	return (value < low) ? low : (value > high) ? high : value;
 }
 
-static bool LowerLimitEnabled(float lower) noexcept
-{
-	return lower > AbsoluteZero + 1.0f;
-}
-
-static bool TargetWithinLimits(float target, float upper, float lower) noexcept
-{
-	return upper < 1000.0f && target <= upper
-		&& (!LowerLimitEnabled(lower) || target >= lower);
-}
 static bool ModelReady(const Model& candidate) noexcept
 {
 	return isfinite(candidate.heatingRate) && candidate.heatingRate > 0.0f
@@ -339,7 +330,7 @@ static void Control() noexcept
 		SetFault(LpcProtocol::ThermalError::overTemperature);
 		return;
 	}
-	if (LowerLimitEnabled(lowerLimit) && temperature < lowerLimit)
+	if (lowerLimit > AbsoluteZero + 1.0f && temperature < lowerLimit)
 	{
 		SetFault(LpcProtocol::ThermalError::underTemperature);
 		return;
@@ -726,7 +717,8 @@ static void Command(const uint8_t* payload, size_t length) noexcept
 			}
 			return;
 		}
-		if (!TargetWithinLimits(requestedTarget, upperLimit, lowerLimit))
+		if (upperLimit >= 1000.0f || requestedTarget > upperLimit
+			|| (lowerLimit > AbsoluteZero + 1.0f && requestedTarget < lowerLimit))
 		{
 			SetFault(LpcProtocol::ThermalError::controlFault);
 			return;
@@ -844,7 +836,7 @@ bool TakeStatus(uint8_t* payload, size_t& length) noexcept
 		return false;
 	}
 	statusDirty = false;
-	const float boundedTemperature = Clamp((temperature < 10.0f) ? 10.0f : temperature, -327.68f, 327.67f);
+	const float boundedTemperature = Clamp(temperature, -327.68f, 327.67f);
 	const int16_t temperatureCenti = static_cast<int16_t>(boundedTemperature * 100.0f);
 	const uint16_t pwm = static_cast<uint16_t>(Clamp(averagePwm, 0.0f, 1.0f) * 65535.0f + 0.5f);
 	payload[0] = static_cast<uint8_t>(temperatureCenti);

@@ -12,21 +12,6 @@
 
 AsyncSerial lpcUart(UART1, UART1_IRQn, ID_UART1, 256, 256,
 	[](AsyncSerial*) noexcept { }, [](AsyncSerial*) noexcept { });
-#if HAS_WIFI_NETWORKING && HAS_WIFI_UART
-AsyncSerial serialWiFi(UART0, UART0_IRQn, ID_UART0, 512, 512,
-	[](AsyncSerial*) noexcept
-	{
-		SetPinFunction(APIN_SerialWiFi_RXD, SerialWiFiPeriphMode);
-		SetPinFunction(APIN_SerialWiFi_TXD, SerialWiFiPeriphMode);
-		EnablePullup(APIN_SerialWiFi_RXD);
-	},
-	[](AsyncSerial*) noexcept { });
-
-void UART0_Handler() noexcept
-{
-	serialWiFi.IrqHandler();
-}
-#endif
 
 void UART1_Handler() noexcept
 {

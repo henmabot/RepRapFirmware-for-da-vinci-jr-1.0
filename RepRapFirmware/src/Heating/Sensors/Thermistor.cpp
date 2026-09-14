@@ -426,6 +426,7 @@ void Thermistor::Poll() noexcept
 {
 	bool tempFilterValid;
 	const int32_t averagedTempReading = GetRawReading(tempFilterValid);
+
 #if HAS_VREF_MONITOR
 	// Use the actual VSSA and VREF values read by the ADC
 	const volatile ThermistorAveragingFilter& vrefFilter = reprap.GetPlatform().GetAdcFilter(VrefFilterIndex);

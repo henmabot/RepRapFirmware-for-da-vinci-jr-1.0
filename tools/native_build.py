@@ -204,7 +204,6 @@ PROJECTS = (
         c_flags=c_flags(
             defines=(
                 "__SAM4E8E__",
-                "DA_VINCI_JR",
                 "noexcept=",
                 "SUPPORT_SDHC=1",
                 "SUPPORT_USB=1",
@@ -214,7 +213,7 @@ PROJECTS = (
             warnings=("-Werror=return-type", "-Werror=implicit"),
         ),
         cxx_flags=cxx_flags(
-            defines=("__SAM4E8E__", "DA_VINCI_JR", "SUPPORT_SDHC=1", "SUPPORT_USB=1", "RTOS"),
+            defines=("__SAM4E8E__", "SUPPORT_SDHC=1", "SUPPORT_USB=1", "RTOS"),
             includes=CORE_CXX_INCLUDES,
             warnings=("-Werror=return-type", "-Wsuggest-override"),
             stack_usage=True,

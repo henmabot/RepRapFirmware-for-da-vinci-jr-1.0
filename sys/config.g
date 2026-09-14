@@ -36,15 +36,12 @@ M574 Z1 S1 P"zstop"
 
 ; Verified LPC1115 peripherals only; NFC is intentionally not exposed.
 ; PIO1_0 = hotend NTC, PIO0_9 = heater, PIO2_5 = hotend fan, PIO1_10 = reflow fan.
-; Use RRF's standard Beta thermistor path. The recovered ROM table is closely
-; approximated by this model, without requiring a printer-specific converter.
+; The hotend NTC is 100K, connected from the ADC node to ground with the MCU side pulled up.
+; B4267/R820 is a recovered-calibration fit; R820 remains an estimate until measured.
 M308 S0 P"lpc.ntc" Y"thermistor" T100000 B4267 C0 R820
 M950 H0 C"lpc.heater" T0 Q250
 M143 H0 S265
 
-; Stock firmware switches the LPC fan output group on above 45C, off below 40C,
-; and holds the previous state in between. Configure both verified fan outputs
-; thermostatically to reproduce that behavior.
 M950 F0 C"lpc.fan" Q250
 M106 P0 C"Hotend fan" H0 T45:45
 M950 F1 C"lpc.reflowfan" Q250
