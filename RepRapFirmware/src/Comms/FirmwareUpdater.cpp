@@ -48,10 +48,6 @@ namespace FirmwareUpdater
 			}
 			if (moduleMap.IsBitSet(WifiFirmwareModule))
 			{
-#if !HAS_WIFI_UART
-				reply.copy("M997 S1 uses the ESP ROM UART uploader, which is not configured on this board");
-				return GCodeResult::error;
-#else
 				String<MaxFilenameLength> location;
 				if (!MassStorage::CombineName(location.GetRef(), FIRMWARE_DIRECTORY, filenameRef.IsEmpty() ? reprap.GetPlatform().GetDefaultWiFiFirmwareName() : filenameRef.c_str())
 						|| !MassStorage::FileExists(location.c_str()))
@@ -59,7 +55,6 @@ namespace FirmwareUpdater
 					reply.printf("File %s not found", location.c_str());
 					return GCodeResult::error;
 				}
-#endif
 			}
 		}
 #endif
