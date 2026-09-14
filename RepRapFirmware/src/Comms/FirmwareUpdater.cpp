@@ -49,7 +49,7 @@ namespace FirmwareUpdater
 			if (moduleMap.IsBitSet(WifiFirmwareModule))
 			{
 #if !HAS_WIFI_UART
-				reply.copy("WiFi firmware upload is unavailable because this board has no verified ESP UART wiring");
+				reply.copy("M997 S1 uses the ESP ROM UART uploader, which is not configured on this board");
 				return GCodeResult::error;
 #else
 				String<MaxFilenameLength> location;

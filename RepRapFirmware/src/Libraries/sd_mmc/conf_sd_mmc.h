@@ -56,11 +56,7 @@
 #define SD_MMC_ENABLE
 
 #define SD_MMC_HSMCI_MEM_CNT		1			// Number of HSMCI card slots supported
-#if defined(DA_VINCI_JR)
-# define SD_MMC_HSMCI_SLOT_0_SIZE	1			// PA26 is reserved for WiFi GPIO4
-#else
-# define SD_MMC_HSMCI_SLOT_0_SIZE	4			// HSMCI bus width
-#endif
+#define SD_MMC_HSMCI_SLOT_0_SIZE	4			// HSMCI bus width
 
 #if defined(PCCB) || defined(DA_VINCI_JR)
 # define SD_MMC_SPI_MEM_CNT			0			// Number of SPI card slots supported

@@ -21,7 +21,7 @@ constexpr uint32_t IAP_IMAGE_START = 0x20018000;
 // Only the SAM4E-connected hardware mapped for this board is enabled here.
 #define HAS_LWIP_NETWORKING     0
 #define HAS_WIFI_NETWORKING     1
-#define HAS_WIFI_UART           0       // PA9/PA10 are not verified, so keep WiFi SPI-only
+#define HAS_WIFI_UART           0       // SPI networking does not require the optional ESP UART
 #define HAS_W5500_NETWORKING    0
 #define HAS_SBC_INTERFACE       0
 #define HAS_MASS_STORAGE        1
@@ -81,10 +81,9 @@ constexpr Pin LpcUartRxPin = PortAPin(5);
 constexpr Pin LpcUartTxPin = PortAPin(6);
 constexpr GpioPinFunction LpcUartPinFunction = GpioPinFunction::C;
 
-// Duet WiFi-compatible ESP8266 SPI transport. ESP GPIO15/CS is wired to PB2.
-// SAM4E slave-mode hardware NSS must reach PA11/NPCS0. A PB2-to-PA11 bridge is
-// therefore required by this design, but PA11's board-level flash-CS mapping
-// remains unverified and must be confirmed before making that hardware change.
+// Duet WiFi-compatible ESP8266 SPI transport. In SAM4E slave mode, hardware
+// NSS must use PA11/NPCS0, so ESP GPIO15/CS is wired there directly. PB2 is a
+// plain GPIO and is used for the SAM-to-ESP transfer-ready signal instead.
 #define ESP_SPI                 SPI
 #define ESP_SPI_INTERFACE_ID    ID_SPI
 #define ESP_SPI_IRQn            SPI_IRQn
@@ -99,8 +98,8 @@ constexpr GpioPinFunction SPIPeriphMode = GpioPinFunction::A;
 constexpr Pin EspResetPin = PortCPin(24);
 constexpr Pin EspEnablePin = PortBPin(14);
 constexpr Pin EspDataReadyPin = PortEPin(3);
-constexpr Pin SamTfrReadyPin = PortAPin(26);
-constexpr Pin SamCsPin = PortBPin(2);
+constexpr Pin SamTfrReadyPin = PortBPin(2);
+constexpr Pin SamCsPin = APIN_ESP_SPI_SS0;
 constexpr DmaChannel DmacChanWiFiTx = 1;
 constexpr DmaChannel DmacChanWiFiRx = 2;
 // X, Y, Z, E1 motor wiring. The TB62269 ENABLE inputs are active high.
@@ -124,7 +123,7 @@ constexpr float DefaultThermistorSeriesR = 4700.0;
 constexpr Pin DiagPin = NoPin;
 constexpr bool DiagOnPolarity = true;
 
-// SD card: one-bit HSMCI on CMD/CLK/DAT0. PA26 is reserved for WiFi GPIO4.
+// SD card: four-bit HSMCI on PA26..PA31, card detect on PA25.
 constexpr size_t NumSdCards = 1;
 constexpr Pin SdCardDetectPins[NumSdCards] = { PortAPin(25) };
 // The socket grounds CD when no card is inserted; with the pull-up enabled,
@@ -135,7 +134,9 @@ constexpr Pin SdSpiCSPins[1] = { NoPin };
 constexpr IRQn SdhcIRQn = HSMCI_IRQn;
 constexpr uint32_t ExpectedSdCardSpeed = 20000000;
 constexpr Pin HsmciClockPin = PortAPin(29);
-constexpr Pin HsmciOtherPins[] = { PortAPin(28), PortAPin(30) };
+constexpr Pin HsmciOtherPins[] = {
+	PortAPin(28), PortAPin(30), PortAPin(31), PortAPin(26), PortAPin(27)
+};
 constexpr GpioPinFunction HsmciPinsFunction = GpioPinFunction::C;
 // Step pulse timer. All four step pins are on PIOC.
 #define STEP_TC          (TC0)
