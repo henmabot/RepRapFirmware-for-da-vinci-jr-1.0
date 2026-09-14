@@ -36,9 +36,9 @@ M574 Z1 S1 P"zstop"
 
 ; Verified LPC1115 peripherals only; NFC is intentionally not exposed.
 ; PIO1_0 = hotend NTC, PIO0_9 = heater, PIO2_5 = hotend fan, PIO1_10 = reflow fan.
-; Keep the stock LPC thermistor port/configuration protocol. The Da Vinci Jr
-; thermistor path converts the returned ADC count using the recovered ROM table.
-M308 S0 P"lpc.ntc" Y"thermistor" T100000 B4267 C0 R4700
+; Use RRF's standard Beta thermistor path. The recovered ROM table is closely
+; approximated by this model, without requiring a printer-specific converter.
+M308 S0 P"lpc.ntc" Y"thermistor" T100000 B4267 C0 R820
 M950 H0 C"lpc.heater" T0 Q250
 M143 H0 S265
 

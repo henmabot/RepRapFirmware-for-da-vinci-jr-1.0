@@ -3,8 +3,6 @@
 #include "Gpio.h"
 #include "Lpc1115.h"
 #include "Pwm.h"
-#include <DaVinciJrThermistor.h>
-
 #include <math.h>
 #include <string.h>
 
@@ -239,7 +237,15 @@ static bool SampleTemperature() noexcept
 	// The hotend NTC is connected from AD1 to ground, with the MCU-side ADC node pulled up.
 	// Therefore Rntc = Rpullup * ADC / (fullScale - ADC).
 	const float resistance = pullupR * static_cast<float>(lastRawAdc) / static_cast<float>(AdcRange - lastRawAdc);
-	temperature = DaVinciJrThermistor::ConvertAdc(lastRawAdc);
+	const float logResistance = logf(resistance);
+	const float recipT = shA + shB * logResistance + shC * logResistance * logResistance * logResistance;
+	if (!(recipT > 0.0f))
+	{
+		error = LpcProtocol::ThermalError::openCircuit;
+		return false;
+	}
+
+	temperature = (1.0f / recipT) + AbsoluteZero;
 	if (!isfinite(temperature) || (temperature < MinimumConnectedTemperature && resistance > pullupR * 100.0f))
 	{
 		error = LpcProtocol::ThermalError::openCircuit;
@@ -838,7 +844,7 @@ bool TakeStatus(uint8_t* payload, size_t& length) noexcept
 		return false;
 	}
 	statusDirty = false;
-	const float boundedTemperature = DaVinciJrThermistor::ClampReportedTemperature(temperature);
+	const float boundedTemperature = Clamp((temperature < 10.0f) ? 10.0f : temperature, -327.68f, 327.67f);
 	const int16_t temperatureCenti = static_cast<int16_t>(boundedTemperature * 100.0f);
 	const uint16_t pwm = static_cast<uint16_t>(Clamp(averagePwm, 0.0f, 1.0f) * 65535.0f + 0.5f);
 	payload[0] = static_cast<uint8_t>(temperatureCenti);

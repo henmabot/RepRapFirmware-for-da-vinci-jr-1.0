@@ -41,7 +41,6 @@ SOURCES = (
     ROOT / "LpcFirmware" / "src" / "Thermal.cpp",
     ROOT / "LpcFirmware" / "src" / "main.cpp",
     ROOT / "Shared" / "src" / "LpcProtocol.cpp",
-    ROOT / "Shared" / "src" / "DaVinciJrThermistor.cpp",
 )
 
 

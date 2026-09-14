@@ -9,7 +9,6 @@
 #include "Thermistor.h"
 #if defined(DA_VINCI_JR)
 # include <Hardware/SAM4E/LpcInterface.h>
-# include <DaVinciJrThermistor.h>
 #endif
 #include <Platform/Platform.h>
 #include <Platform/RepRap.h>
@@ -427,34 +426,6 @@ void Thermistor::Poll() noexcept
 {
 	bool tempFilterValid;
 	const int32_t averagedTempReading = GetRawReading(tempFilterValid);
-
-#if defined(DA_VINCI_JR)
-	const bool isLpcThermistor = !isPT1000 && port.IsValid() && IsLpcPin(port.GetPin()) && GetLpcPinId(port.GetPin()) == LpcProtocol::Pins::HotendNtc;
-	if (isLpcThermistor)
-	{
-		if (!tempFilterValid)
-		{
-			SetResult(TemperatureError::notReady);
-			return;
-		}
-		const int32_t rawAdc = averagedTempReading >> AdcOversampleBits;
-		if (rawAdc <= 0)
-		{
-			SetResult(BadErrorTemperature, TemperatureError::shortCircuit);
-		}
-		else if (rawAdc >= 1023)
-		{
-			SetResult(ABS_ZERO, TemperatureError::openCircuit);
-		}
-		else
-		{
-			const float temperature = DaVinciJrThermistor::ConvertAdc(static_cast<uint16_t>(rawAdc));
-			SetResult(DaVinciJrThermistor::ClampReportedTemperature(temperature), TemperatureError::ok);
-		}
-		return;
-	}
-#endif
-
 #if HAS_VREF_MONITOR
 	// Use the actual VSSA and VREF values read by the ADC
 	const volatile ThermistorAveragingFilter& vrefFilter = reprap.GetPlatform().GetAdcFilter(VrefFilterIndex);

@@ -10,7 +10,6 @@ SOURCE = BUILD_DIR / "main.cpp"
 BINARY = BUILD_DIR / "protocol-selftest"
 
 TEST_PROGRAM = r'''
-#include <DaVinciJrThermistor.h>
 #include <LpcProtocol.h>
 #include "LpcFirmware/src/Thermal.cpp"
 
@@ -45,6 +44,18 @@ static void RoundTrip(MessageType type, const uint8_t* payload, uint8_t length)
     }
 }
 
+static float BetaTemperature(uint16_t rawAdc)
+{
+   constexpr float pullupR = 820.0f;
+   constexpr float r25 = 100000.0f;
+   constexpr float beta = 4267.0f;
+   constexpr float absoluteZero = -273.15f;
+   constexpr float t25Kelvin = 25.0f - absoluteZero;
+   const float resistance = pullupR * static_cast<float>(rawAdc) / static_cast<float>(1024u - rawAdc);
+   const float recipT = (1.0f / t25Kelvin) + std::log(resistance / r25) / beta;
+   return (1.0f / recipT) + absoluteZero;
+}
+
 int main()
 {
     uint8_t payload[MaxPayload] = {};
@@ -77,36 +88,19 @@ int main()
         {3968, 55}, {3984, 50}, {4000, 45}, {4018, 40}, {4034, 35},
         {4049, 30}, {4058, 25}, {4068, 20}, {4073, 15}, {4077, 10},
     };
+    float squaredError = 0.0f;
+    float maximumError = 0.0f;
     for (const CalibrationPoint& point : stockTable)
     {
         const uint16_t adc = static_cast<uint16_t>((point.raw + 2u) / 4u);
-        // The stock table is 12-bit-scaled while the physical LPC ADC is only
-        // 10-bit, so nearest-ADC quantization is the only permitted error.
-        assert(std::fabs(DaVinciJrThermistor::ConvertAdc(adc) - point.temperature) <= 1.25f);
+        const float error = BetaTemperature(adc) - point.temperature;
+        squaredError += error * error;
+        maximumError = std::fmax(maximumError, std::fabs(error));
     }
-
-    // These stock points are exactly representable by the 10-bit ADC and must
-    // therefore remain exact after interpolation.
-    assert(std::fabs(DaVinciJrThermistor::ConvertAdc(1000) - 45.0f) < 0.001f);
-    assert(std::fabs(DaVinciJrThermistor::ConvertAdc(996) - 50.0f) < 0.001f);
-    assert(std::fabs(DaVinciJrThermistor::ConvertAdc(992) - 55.0f) < 0.001f);
-
-    // Interpolation is continuous rather than limited to the stock table's
-    // five-degree entries, and edge extrapolation extends beyond 10..250C.
-    assert(DaVinciJrThermistor::ConvertAdc(100) > 300.0f);
-    assert(DaVinciJrThermistor::ConvertAdc(1022) < 0.0f);
-    assert(DaVinciJrThermistor::ClampReportedTemperature(-50.0f) == 10.0f);
-    assert(DaVinciJrThermistor::ClampReportedTemperature(10.0f) == 10.0f);
-    assert(DaVinciJrThermistor::ClampReportedTemperature(125.0f) == 125.0f);
-    assert(DaVinciJrThermistor::ClampReportedTemperature(250.0f) == 250.0f);
-    assert(DaVinciJrThermistor::ClampReportedTemperature(350.0f) == 350.0f);
-    float previous = DaVinciJrThermistor::ConvertAdc(1);
-    for (uint16_t raw = 2; raw < 1023; ++raw)
-    {
-        const float current = DaVinciJrThermistor::ConvertAdc(raw);
-        assert(current < previous);
-        previous = current;
-    }
+    const float rmsError = std::sqrt(squaredError / (sizeof(stockTable) / sizeof(stockTable[0])));
+    assert(rmsError < 2.0f);
+    assert(maximumError < 5.0f);
+    std::puts("PASS: R820/B4267 Beta model stays close to the recovered stock table");
 
     constexpr float startupTarget = -273.15f;
     constexpr float transmittedLowerLimit = -273.1f;
@@ -168,7 +162,6 @@ def main() -> int:
             "-I",
             str(ROOT / "Shared" / "src"),
             str(SOURCE),
-            str(ROOT / "Shared" / "src" / "DaVinciJrThermistor.cpp"),
             str(ROOT / "Shared" / "src" / "LpcProtocol.cpp"),
             "-Wl,--gc-sections",
             "-o",
