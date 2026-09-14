@@ -1,4 +1,5 @@
 set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
+device := env("DEVICE", "/dev/tty.usbmodem1201")
 
 default:
     @just --list
@@ -12,3 +13,10 @@ build:
 clean:
     python3 tools/native_build.py clean
     python3 tools/lpc_build.py clean
+
+flash-sam:
+    bossac --port={{ device }} -e -w -v -b build/RepRapFirmware/DaVinciJrFirmware.bin
+
+flash-lpc:
+    openocd -f interface/cmsis-dap.cfg -f target/lpc11xx.cfg \
+                   -c "adapter speed 100" -c "program build/LpcFirmware/Lpc1115Firmware.elf reset exit"
