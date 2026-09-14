@@ -180,6 +180,8 @@ static void SetOffline() noexcept
 		received = false;
 	}
 	thermalStatusReceived = false;
+	haveTuningReportA = false;
+	tuningReportPending = false;
 }
 
 static void HandlePong(const LpcProtocol::Frame& frame) noexcept
@@ -292,6 +294,8 @@ void Init() noexcept
 	transmitMutex.Create("LPC");
 	online = false;
 	thermalStatusReceived = false;
+	haveTuningReportA = false;
+	tuningReportPending = false;
 	lastPongReceived = 0;
 	SendPing();
 }
@@ -317,6 +321,12 @@ void Spin() noexcept
 			break;
 		case LpcProtocol::MessageType::thermalStatus:
 			HandleThermalStatus(frame);
+			break;
+		case LpcProtocol::MessageType::heaterTuningReportA:
+			HandleTuningReportA(frame);
+			break;
+		case LpcProtocol::MessageType::heaterTuningReportB:
+			HandleTuningReportB(frame);
 			break;
 		default:
 			break;
@@ -571,6 +581,51 @@ bool GetThermalStatus(ThermalStatus& status) noexcept
 		return false;
 	}
 	status = thermalStatus;
+	return true;
+}
+
+void StartHeaterTuning(bool on, float pwm, float lowTemp, float highTemp, float peakTempDrop) noexcept
+{
+	const float constrainedPwm = (pwm <= 0.0f) ? 0.0f : (pwm >= 1.0f) ? 1.0f : pwm;
+	const uint8_t pwmByte = static_cast<uint8_t>(constrainedPwm * 255.0f + 0.5f);
+	const int16_t lowCenti = ToCentiDegrees(lowTemp);
+	const int16_t highCenti = ToCentiDegrees(highTemp);
+	const uint16_t dropCenti = ToUnsignedHundredths(peakTempDrop);
+	const uint8_t payload[] = {
+		static_cast<uint8_t>(on ? 1u : 0u),
+		pwmByte,
+		static_cast<uint8_t>(lowCenti),
+		static_cast<uint8_t>(static_cast<uint16_t>(lowCenti) >> 8),
+		static_cast<uint8_t>(highCenti),
+		static_cast<uint8_t>(static_cast<uint16_t>(highCenti) >> 8),
+		static_cast<uint8_t>(dropCenti),
+		static_cast<uint8_t>(dropCenti >> 8)
+	};
+	// Mirror CommandHeater: a cancel (on == false) is sent even if we believe we're offline, since
+	// that's exactly the situation where we most want the heater to stop; a start is only meaningful
+	// once the link is confirmed up (StartHeaterTuning's caller is expected to have checked IsOnline()
+	// too, but there is no harm in re-checking here).
+	if (!on || IsOnline())
+	{
+		Send(LpcProtocol::MessageType::heaterTuningCommand, payload, sizeof(payload));
+	}
+	if (!on)
+	{
+		TaskCriticalSectionLocker lock;
+		haveTuningReportA = false;
+		tuningReportPending = false;
+	}
+}
+
+bool GetTuningReport(TuningReport& report) noexcept
+{
+	TaskCriticalSectionLocker lock;
+	if (!tuningReportPending)
+	{
+		return false;
+	}
+	report = latestTuningReport;
+	tuningReportPending = false;
 	return true;
 }
 

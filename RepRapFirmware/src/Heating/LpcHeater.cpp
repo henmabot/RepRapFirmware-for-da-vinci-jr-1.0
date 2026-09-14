@@ -105,6 +105,7 @@ void LpcHeater::Spin() noexcept
 		connectionGeneration = currentGeneration;
 		if (mode >= HeaterMode::suspended)
 		{
+			tuning = false;
 			RaiseFault(LpcProtocol::ThermalError::linkTimeout);
 		}
 	}
@@ -113,10 +114,26 @@ void LpcHeater::Spin() noexcept
 	{
 		if (mode != HeaterMode::fault)
 		{
-			mode = static_cast<HeaterMode>(status.state);
-			if (mode == HeaterMode::fault)
+			// While tuning, the LPC firmware reports a wire state of 'heating' throughout (it does its
+			// own relay control rather than following our targetTemperature), so don't let that
+			// overwrite our tuning bookkeeping - just watch for a fault raised during tuning.
+			const HeaterMode wireMode = static_cast<HeaterMode>(status.state);
+			if (tuning)
 			{
-				RaiseFault(status.error);
+				if (wireMode == HeaterMode::fault)
+				{
+					tuning = false;
+					mode = wireMode;
+					RaiseFault(status.error);
+				}
+			}
+			else
+			{
+				mode = wireMode;
+				if (mode == HeaterMode::fault)
+				{
+					RaiseFault(status.error);
+				}
 			}
 		}
 	}
@@ -124,6 +141,7 @@ void LpcHeater::Spin() noexcept
 	{
 		if (mode >= HeaterMode::suspended)
 		{
+			tuning = false;
 			RaiseFault(LpcProtocol::ThermalError::linkTimeout);
 		}
 		else
@@ -131,10 +149,19 @@ void LpcHeater::Spin() noexcept
 			mode = HeaterMode::offline;
 		}
 	}
+
+	if (tuning)
+	{
+		PollTuning();
+	}
 }
 
 void LpcHeater::SwitchOff() noexcept
 {
+	if (tuning)
+	{
+		StopTuning();
+	}
 	LpcInterface::CommandHeater(LpcProtocol::HeaterCommand::off, 0.0f);
 	if (mode != HeaterMode::fault)
 	{
@@ -150,6 +177,7 @@ GCodeResult LpcHeater::ResetFault(const StringRef& reply) noexcept
 		reply.copy("LPC heater is offline");
 		return GCodeResult::error;
 	}
+	tuning = false;
 	LpcInterface::CommandHeater(LpcProtocol::HeaterCommand::resetFault, 0.0f);
 	mode = HeaterMode::off;
 	return GCodeResult::ok;
@@ -174,6 +202,10 @@ float LpcHeater::GetAveragePWM() const noexcept
 
 void LpcHeater::Suspend(bool sus) noexcept
 {
+	if (sus && tuning)
+	{
+		StopTuning();
+	}
 	if (sus && (mode == HeaterMode::stable || mode == HeaterMode::heating || mode == HeaterMode::cooling))
 	{
 		LpcInterface::CommandHeater(LpcProtocol::HeaterCommand::suspend, GetTargetTemperature());
@@ -264,10 +296,97 @@ GCodeResult LpcHeater::UpdateHeaterMonitors(const StringRef& reply) noexcept
 	return GCodeResult::ok;
 }
 
+// Auto tune this heater. The caller (Heater::StartAutoTune) has already checked that no other heater
+// is being tuned and has set up tuningTargetTemp, tuningPwm and tuningHysteresis. The LPC firmware
+// runs the actual relay-tuning state machine and reports one completed cycle at a time via
+// heaterTuningReportA/B; PollTuning() (called from Spin() while 'tuning' is set) consumes those
+// reports the way RemoteHeater::UpdateHeaterTuning does for CAN-connected expansion boards.
+//
+// ambientTemp/seenA are accepted for interface compatibility with Heater::StartAutoTune but are not
+// used: unlike LocalHeater/RemoteHeater there is no "wait for starting temperature to settle" phase
+// here, since the LPC firmware's relay tuning starts heating immediately once commanded.
 GCodeResult LpcHeater::StartAutoTune(const StringRef& reply, bool seenA, float ambientTemp) noexcept
 {
-	reply.copy("Auto tuning is not supported by the LPC heater yet");
-	return GCodeResult::error;
+	(void)seenA;
+	(void)ambientTemp;
+	if (!LpcInterface::IsOnline())
+	{
+		reply.copy("LPC heater is offline");
+		return GCodeResult::error;
+	}
+	if (!LpcInterface::IsThermistorSensor(GetSensorNumber()))
+	{
+		reply.printf("Heater %u must use the NTC configured on lpc.ntc", GetHeaterNumber());
+		return GCodeResult::error;
+	}
+	if (!Succeeded(ValidateMonitors(reply)))
+	{
+		return GCodeResult::error;
+	}
+	LpcInterface::ThermalStatus status;
+	if (!LpcInterface::GetThermalStatus(status))
+	{
+		reply.copy("LPC thermal status is unavailable");
+		return GCodeResult::error;
+	}
+	if (status.state == LpcProtocol::HeaterState::fault)
+	{
+		reply.printf("LPC heater is in fault state: %s", GetThermalErrorText(status.error));
+		return GCodeResult::error;
+	}
+
+	ClearCounters();
+	tuned = false;
+	SendConfiguration();
+	LpcInterface::StartHeaterTuning(true, tuningPwm, tuningTargetTemp - tuningHysteresis, tuningTargetTemp, TuningPeakTempDrop);
+	tuning = true;
+	tuningPhase = 1;
+	ReportTuningUpdate();
+	return GCodeResult::ok;
+}
+
+// Cancel tuning (if in progress) and put the heater back into a safe off state.
+void LpcHeater::StopTuning() noexcept
+{
+	tuning = false;
+	LpcInterface::StartHeaterTuning(false, 0.0f, 0.0f, 0.0f, 0.0f);
+	if (mode != HeaterMode::fault)
+	{
+		mode = HeaterMode::off;
+	}
+}
+
+// Called from Spin() once per tick while tuning is in progress. Consumes at most one newly-completed
+// tuning cycle per call, in the same way RemoteHeater::UpdateHeaterTuning does for a CAN report.
+void LpcHeater::PollTuning() noexcept
+{
+	LpcInterface::TuningReport report;
+	if (!LpcInterface::GetTuningReport(report))
+	{
+		return;
+	}
+
+	tOn.Add((float)report.ton);
+	tOff.Add((float)report.toff);
+	dHigh.Add((float)report.dhigh);
+	dLow.Add((float)report.dlow);
+	heatingRateAcc.Add(report.heatingRate);
+	coolingRateAcc.Add(report.coolingRate);
+	tuningVoltage.Add(report.voltage);
+
+	// The LPC firmware itself caps tuning at a small fixed number of cycles (it has no room to run
+	// RemoteHeater/LocalHeater's consistency-based early exit), so once it reports the last cycle,
+	// finish here rather than waiting for more data that will never arrive.
+	if (coolingRateAcc.GetNumSamples() >= MinTuningHeaterCycles || report.cyclesDone >= MinTuningHeaterCycles)
+	{
+		tuning = false;
+		CalculateModel(fanOffParams);
+		SetAndReportModelAfterTuning(false);
+		if (mode != HeaterMode::fault)
+		{
+			mode = HeaterMode::off;
+		}
+	}
 }
 
 void LpcHeater::ApplyExtrusionFeedForward() noexcept
