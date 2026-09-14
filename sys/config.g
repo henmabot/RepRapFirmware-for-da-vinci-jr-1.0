@@ -36,19 +36,16 @@ M574 Z1 S1 P"zstop"
 
 ; Verified LPC1115 peripherals only; NFC is intentionally not exposed.
 ; PIO1_0 = hotend NTC, PIO0_9 = heater, PIO2_5 = hotend fan, PIO1_10 = reflow fan.
-; The hotend NTC conversion interpolates the 50-point stock SAM4E8E ROM table.
-; Edge extrapolation removes the stock 10..250C range clamp.
-M308 S0 Y"davinci-ntc"
+; Keep the stock LPC thermistor port/configuration protocol. The Da Vinci Jr
+; thermistor path converts the returned ADC count using the recovered ROM table.
+M308 S0 P"lpc.ntc" Y"thermistor" T100000 B4267 C0 R4700
 M950 H0 C"lpc.heater" T0 Q250
 M143 H0 S265
 
-; Stock firmware switches the LPC fan output group on above 45C, off below 40C,
-; and holds the previous state in between. Configure both verified fan outputs
-; thermostatically to reproduce that behavior.
 M950 F0 C"lpc.fan" Q250
-M106 P0 C"Hotend fan" H0 T45:45
+M106 P0 C"Hotend fan" S0
 M950 F1 C"lpc.reflowfan" Q250
-M106 P1 C"Reflow fan" H0 T45:45
+M106 P1 C"Reflow fan" S0
 
 ; The hotend IR filament sensor is verified active-low. Its pin alias performs
 ; that electrical inversion, so P1 reports filament present when the logical

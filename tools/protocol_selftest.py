@@ -60,7 +60,7 @@ int main()
     RoundTrip(MessageType::gpioState, payload, 2);
     RoundTrip(MessageType::pwmWrite, payload, 5);
     RoundTrip(MessageType::thermalStatus, payload, 8);
-    RoundTrip(MessageType::thermistorConfig, nullptr, 0);
+    RoundTrip(MessageType::thermistorConfig, payload, 16);
 
     struct CalibrationPoint { uint16_t raw; float temperature; };
     static constexpr CalibrationPoint stockTable[] = {

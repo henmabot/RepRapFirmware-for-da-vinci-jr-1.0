@@ -110,12 +110,7 @@ void LocalFan::InternalRefresh(bool checkSensors) noexcept
 					//TODO we used to turn the fan on if the associated heater was being tuned
 					float ht;
 					const TemperatureError err = sensor->GetLatestTemperature(ht);
-#if defined(DA_VINCI_JR)
-					// Stock Da Vinci Jr fan control holds its state at the exact 40C/45C boundaries.
-					if (err != TemperatureError::ok || ht < BadLowTemperature || (bangBangMode ? ht > triggerTemperatures[1] : ht >= triggerTemperatures[1]))
-#else
 					if (err != TemperatureError::ok || ht < BadLowTemperature || ht >= triggerTemperatures[1])
-#endif
 					{
 						reqVal = maxVal;
 					}
@@ -128,11 +123,7 @@ void LocalFan::InternalRefresh(bool checkSensors) noexcept
 							reqVal = newVal;
 						}
 					}
-#if defined(DA_VINCI_JR)
-					else if (lastVal > 0.0 && (bangBangMode ? ht + ThermostatHysteresis >= triggerTemperatures[0] : ht + ThermostatHysteresis > triggerTemperatures[0]))
-#else
 					else if (lastVal > 0.0 && ht + ThermostatHysteresis > triggerTemperatures[0])		// if the fan is on, add a hysteresis before turning it off
-#endif
 					{
 						const float newVal = (bangBangMode) ? maxVal : minVal;
 						if (newVal > reqVal)

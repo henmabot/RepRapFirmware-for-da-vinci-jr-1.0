@@ -7,6 +7,10 @@
  */
 
 #include "Thermistor.h"
+#if defined(DA_VINCI_JR)
+# include <Hardware/SAM4E/LpcInterface.h>
+# include <DaVinciJrThermistor.h>
+#endif
 #include <Platform/Platform.h>
 #include <Platform/RepRap.h>
 #include <GCodes/GCodeBuffer/GCodeBuffer.h>
@@ -72,6 +76,9 @@ Thermistor::Thermistor(unsigned int sensorNum, bool p_isPT1000) noexcept
 
 Thermistor::~Thermistor() noexcept
 {
+#if defined(DA_VINCI_JR)
+	LpcInterface::UnregisterThermistor(GetSensorNumber());
+#endif
 }
 
 // Get the ADC reading
@@ -232,8 +239,17 @@ void Thermistor::InitPort() noexcept
 // Configure the temperature sensor
 GCodeResult Thermistor::Configure(GCodeBuffer& gb, const StringRef& reply, bool& changed) THROWS(GCodeException)
 {
+#if defined(DA_VINCI_JR)
+	const bool wasLpcThermistor = port.IsValid() && IsLpcPin(port.GetPin()) && GetLpcPinId(port.GetPin()) == LpcProtocol::Pins::HotendNtc;
+#endif
 	if (!ConfigurePort(gb, reply, PinAccess::readAnalog, changed))
 	{
+#if defined(DA_VINCI_JR)
+		if (wasLpcThermistor)
+		{
+			LpcInterface::UnregisterThermistor(GetSensorNumber());
+		}
+#endif
 		return GCodeResult::error;
 	}
 
@@ -279,6 +295,30 @@ GCodeResult Thermistor::Configure(GCodeBuffer& gb, const StringRef& reply, bool&
 	}
 
 	ConfigureCommonParameters(gb, changed);
+#if defined(DA_VINCI_JR)
+	const bool isLpcThermistor = port.IsValid() && IsLpcPin(port.GetPin()) && GetLpcPinId(port.GetPin()) == LpcProtocol::Pins::HotendNtc;
+	if (isLpcThermistor)
+	{
+		if (isPT1000)
+		{
+			reply.copy("lpc.ntc only supports an NTC thermistor");
+			return GCodeResult::error;
+		}
+		if (adcLowOffset != 0 || adcHighOffset != 0)
+		{
+			reply.copy("lpc.ntc does not support H/L ADC correction");
+			return GCodeResult::error;
+		}
+		if (changed)
+		{
+			LpcInterface::ConfigureThermistor(GetSensorNumber(), r25, beta, shC, seriesR);
+		}
+	}
+	else if (wasLpcThermistor)
+	{
+		LpcInterface::UnregisterThermistor(GetSensorNumber());
+	}
+#endif
 
 	if (!changed)
 	{
@@ -387,6 +427,32 @@ void Thermistor::Poll() noexcept
 {
 	bool tempFilterValid;
 	const int32_t averagedTempReading = GetRawReading(tempFilterValid);
+
+#if defined(DA_VINCI_JR)
+	const bool isLpcThermistor = !isPT1000 && port.IsValid() && IsLpcPin(port.GetPin()) && GetLpcPinId(port.GetPin()) == LpcProtocol::Pins::HotendNtc;
+	if (isLpcThermistor)
+	{
+		if (!tempFilterValid)
+		{
+			SetResult(TemperatureError::notReady);
+			return;
+		}
+		const int32_t rawAdc = averagedTempReading >> AdcOversampleBits;
+		if (rawAdc <= 0)
+		{
+			SetResult(BadErrorTemperature, TemperatureError::shortCircuit);
+		}
+		else if (rawAdc >= 1023)
+		{
+			SetResult(ABS_ZERO, TemperatureError::openCircuit);
+		}
+		else
+		{
+			SetResult(DaVinciJrThermistor::ConvertAdc(static_cast<uint16_t>(rawAdc)), TemperatureError::ok);
+		}
+		return;
+	}
+#endif
 
 #if HAS_VREF_MONITOR
 	// Use the actual VSSA and VREF values read by the ADC
