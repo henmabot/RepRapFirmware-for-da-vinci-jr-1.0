@@ -58,3 +58,4 @@ M591 D0 P1 C"lpc.filament" S2
 ; Declaring heater 0 as the tool heater enables RRF's default hotend model.
 ; Neither verified fan is assumed to be the slicer's part-cooling fan.
 M563 P0 D0 H0 F-1
+T0
