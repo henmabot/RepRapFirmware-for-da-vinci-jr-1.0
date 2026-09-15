@@ -19,4 +19,4 @@ flash-sam:
 
 flash-lpc:
     openocd -f interface/cmsis-dap.cfg -f target/lpc11xx.cfg \
-                   -c "adapter speed 100" -c "program build/LpcFirmware/Lpc1115Firmware.elf reset exit"
+        -c "adapter speed 100" -c "program build/LpcFirmware/Lpc1115Firmware.elf verify reset exit"
