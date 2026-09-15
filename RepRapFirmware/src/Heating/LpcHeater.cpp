@@ -338,6 +338,13 @@ GCodeResult LpcHeater::StartAutoTune(const StringRef& reply, bool seenA, float a
 
 	ClearCounters();
 	tuned = false;
+	// StartTuning() on the LPC firmware requires modelConfigured==true (LpcFirmware/src/Thermal.cpp)
+	// and hard-faults (controlFault) if it isn't. Unlike SwitchOn(), which always sends the model
+	// before commanding heaterCommand::on, this path previously only sent SendConfiguration()
+	// (limits/frequency) and never the model - so tuning a heater that had never been switched on
+	// first (e.g. immediately after boot) faulted deterministically on every attempt, regardless of
+	// mode/feedforward state.
+	LpcInterface::ConfigureHeaterModel(GetModel());
 	SendConfiguration();
 	LpcInterface::StartHeaterTuning(true, tuningPwm, tuningTargetTemp - tuningHysteresis, tuningTargetTemp, TuningPeakTempDrop);
 	tuning = true;
