@@ -338,13 +338,6 @@ GCodeResult LpcHeater::StartAutoTune(const StringRef& reply, bool seenA, float a
 
 	ClearCounters();
 	tuned = false;
-	// StartTuning() on the LPC firmware requires modelConfigured==true (LpcFirmware/src/Thermal.cpp)
-	// and hard-faults (controlFault) if it isn't. Unlike SwitchOn(), which always sends the model
-	// before commanding heaterCommand::on, this path previously only sent SendConfiguration()
-	// (limits/frequency) and never the model - so tuning a heater that had never been switched on
-	// first (e.g. immediately after boot) faulted deterministically on every attempt, regardless of
-	// mode/feedforward state.
-	LpcInterface::ConfigureHeaterModel(GetModel());
 	SendConfiguration();
 	LpcInterface::StartHeaterTuning(true, tuningPwm, tuningTargetTemp - tuningHysteresis, tuningTargetTemp, TuningPeakTempDrop);
 	tuning = true;
@@ -431,34 +424,9 @@ void LpcHeater::PollTuning() noexcept
 	}
 }
 
-// Apply extrusion feedforward. This is called unconditionally by Heater::SetExtrusionFeedForward()
-// whenever a move updates the feedforward boost, regardless of what mode the heater is in - RRF core
-// doesn't gate this on tuning state. LocalHeater's own ApplyExtrusionFeedForward() only applies the
-// boost while mode == stable (RepRapFirmware/src/Heating/LocalHeater.cpp); mirror that intent here,
-// but re-derive "stable" from the live wire status rather than trusting the cached mode field alone.
-// mode is host-side state, set from whatever the LPC last reported over UART: during boot (before the
-// first thermal status frame arrives) or right after a reconnect, it can be stale/wrong for a brief
-// window while RRF core is already free to call this from any planned move, including homing moves at
-// startup. GetThermalStatus() has its own staleness/online check built in (returns false if !online,
-// no status ever received, or the last one is >=1s old), so right after boot or a fresh reconnect this
-// simply returns false and we correctly do nothing, instead of falling through on a stale mode. This
-// matters more for us than for LocalHeater/RemoteHeater: the LPC firmware's ConfigureFeedForward()
-// hard-faults (ThermalError::controlFault) on any non-finite fan/pwm/temperature boost value, and
-// feedforward values computed from an in-progress or not-yet-settled move can transiently be
-// non-finite. Applying (or even sending) a feedforward boost while tuning makes no sense anyway - the
-// tuning relay loop ignores targetTemperature/PID entirely - so skipping the send while tuning, in
-// addition to the stable-only gating, avoids that class of spurious fault entirely.
 void LpcHeater::ApplyExtrusionFeedForward() noexcept
 {
-	if (tuning)
-	{
-		return;
-	}
-	LpcInterface::ThermalStatus status;
-	if (LpcInterface::GetThermalStatus(status) && status.state == LpcProtocol::HeaterState::stable)
-	{
-		SendFeedForward();
-	}
+	SendFeedForward();
 }
 
 void LpcHeater::SendConfiguration() noexcept
@@ -485,30 +453,9 @@ void LpcHeater::SendConfiguration() noexcept
 		static_cast<uint8_t>(min<uint32_t>(GetMaxBadTemperatureCount(), 255u)));
 }
 
-// The LPC firmware hard-faults (controlFault) on any non-finite value here, whereas a bad feedforward
-// value elsewhere in RRF would normally just produce a wrong (but finite) PWM. Sanitise defensively
-// at the point we cross into the wire protocol, on top of the tuning gate in
-// ApplyExtrusionFeedForward(), so a future caller of SendFeedForward() can't reintroduce this failure
-// mode.
-// The LPC firmware only rejects non-finite values here (LpcFirmware/src/Thermal.cpp,
-// ConfigureFeedForward()) - fanPwm gets clamped to [0,1] on the wire side, but
-// extrusionPwmBoost/extrusionTemperatureBoost are accumulated into an unbounded integral with no
-// magnitude check at all. A finite-but-garbage value from an unsettled boot-time move would pass the
-// isfinite check below and still corrupt the boost sent to the firmware. Add a sanity magnitude clamp
-// on top of isfinite so that class of value gets zeroed too, not just non-finite ones. The limits here
-// (1.0f for PWM boost, 50.0f degC for temperature boost) are a conservative sanity ceiling, not a
-// value verified against a firmware-enforced range - M572 (Tool::GetSetFeedForward) takes unclamped
-// user-supplied floats and there's no existing authoritative bound to match on the RRF side either.
 void LpcHeater::SendFeedForward() noexcept
 {
-	auto sanitize = [](float value, float limit) noexcept -> float
-	{
-		return (std::isfinite(value) && fabsf(value) <= limit) ? value : 0.0f;
-	};
-	const float safeFanPwm = sanitize(lastFanPwm, 1.0f);
-	const float safeExtrusionPwmBoost = sanitize(extrusionPwmBoost, 1.0f);
-	const float safeExtrusionTemperatureBoost = sanitize(extrusionTemperatureBoost, 50.0f);
-	LpcInterface::ConfigureHeaterFeedForward(safeFanPwm, safeExtrusionPwmBoost, safeExtrusionTemperatureBoost);
+	LpcInterface::ConfigureHeaterFeedForward(lastFanPwm, extrusionPwmBoost, extrusionTemperatureBoost);
 }
 
 void LpcHeater::RaiseFault(LpcProtocol::ThermalError error) noexcept

@@ -965,6 +965,13 @@ static void ConfigureFeedForward(const uint8_t* payload, size_t length) noexcept
 	{
 		return;
 	}
+	// Relay tuning owns the heater output directly. Feedforward updates from
+	// host motion are irrelevant during tuning and may contain transient
+	// values that normal PID control would consume only in stable mode.
+	if (tuningPhase != TuningPhase::notTuning)
+	{
+		return;
+	}
 	const float newFanPwm = ReadFloat(payload);
 	const float newExtrusionPwmBoost = ReadFloat(payload + 4);
 	const float newExtrusionTemperatureBoost = ReadFloat(payload + 8);
