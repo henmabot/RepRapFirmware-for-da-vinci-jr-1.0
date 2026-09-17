@@ -14,7 +14,7 @@ M569 P3 S1
 
 ; Stock mechanics. X/Y/E use 3200 microsteps/revolution. Z uses 6400.
 ; The TB62269 microstep mode is hardware-set, so there is intentionally no M350.
-M92 X80 Y80 Z2560 E96
+M92 X80 Y80 Z5120 E96
 
 ; Recovered stock planner limits. M203 S1 uses mm/s; M566 uses mm/min.
 M203 S1 X1500 Y1500 Z5 E150
