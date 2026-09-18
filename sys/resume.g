@@ -1,1 +1,1 @@
-; RRF restores the paused XYZ position automatically after this macro.
+; No additional resume handling is configured.
